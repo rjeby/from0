@@ -1,5 +1,35 @@
 import { createServer, Socket } from "net";
 
+class DynamicBuffer {
+  data: Buffer;
+  length: number;
+  constructor() {
+    this.data = Buffer.from("");
+    this.length = 0;
+  }
+
+  push(buffer: Buffer) {
+    const newLength = this.length + buffer.length;
+    if (this.data.length < newLength) {
+      let capacity = Math.max(this.data.length, 32);
+      while (capacity < newLength) {
+        capacity *= 2;
+      }
+      const grown = Buffer.alloc(capacity);
+      this.data.copy(grown, 0, 0);
+      this.data = grown;
+    }
+
+    buffer.copy(this.data, this.length, 0);
+    this.length = newLength;
+  }
+
+  consume(size: number) {
+    this.data = this.data.subarray(size);
+    this.length = this.length - size;
+  }
+}
+
 class TCPConnection {
   socket: Socket;
   reader: null | {
@@ -8,12 +38,14 @@ class TCPConnection {
   };
   ended: boolean;
   error: null | Error;
+  queue: Array<String>;
 
   constructor(socket: Socket) {
     this.socket = socket;
     this.reader = null;
     this.ended = false;
     this.error = null;
+    this.queue = [];
 
     socket
       .on("data", (data: Buffer) => {
@@ -75,14 +107,36 @@ class TCPConnection {
 
 const serveClient = async (socket: Socket) => {
   const connection = new TCPConnection(socket);
+  const buffer = new DynamicBuffer();
   while (true) {
+    const message = readMessage(buffer);
+    console.log("Message: ", message?.toString())
+    if (message && message.equals(Buffer.from("quit\n"))) {
+      await connection.write(Buffer.from("Bye.\n"));
+      socket.destroy();
+      return;
+    }
+    if (message) {
+      const reply = Buffer.concat([Buffer.from("Echo: "), message]);
+      await connection.write(reply);
+      continue;
+    }
     const data = await connection.read();
-    console.log("DATA: ", data.toString())
+    buffer.push(data);
     if (!data.length) {
       break;
     }
-    await connection.write(data);
   }
+};
+
+const readMessage = (buffer: DynamicBuffer) => {
+  const index = buffer.data.subarray(0, buffer.length).indexOf("\n");
+  if (index < 0) {
+    return null;
+  }
+  const message = Buffer.from(buffer.data.subarray(0, index + 1));
+  buffer.consume(index + 1);
+  return message;
 };
 
 const initConnection = async (socket: Socket) => {
