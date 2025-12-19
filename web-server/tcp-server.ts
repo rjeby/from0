@@ -1,5 +1,102 @@
 import { createServer, Socket } from "net";
 
+class TrieNode {
+  children: Map<string, TrieNode>;
+  isWord: boolean;
+  constructor() {
+    this.children = new Map();
+    this.isWord = false;
+  }
+}
+
+class Trie {
+  root: TrieNode;
+  constructor() {
+    this.root = new TrieNode();
+  }
+
+  insert(word: string) {
+    let current = this.root;
+    for (const c of word) {
+      if (!current.children.has(c)) {
+        current.children.set(c, new TrieNode());
+      }
+      current = current.children.get(c)!;
+    }
+    current.isWord = true;
+  }
+}
+
+const methodTrie = () => {
+  const trie = new Trie();
+  const methods = ["GET", "POST", "PUT", "DELETE"];
+  for (const method of methods) {
+    trie.insert(method);
+  }
+
+  return trie;
+};
+
+const METHOD_TRIE: Trie = methodTrie();
+
+class HTTPConnection {
+  connection: TCPConnection;
+  buffer: DynamicBuffer;
+  constructor(connection: TCPConnection, buffer: DynamicBuffer) {
+    this.connection = connection;
+    this.buffer = buffer;
+  }
+
+  read(size: number): Promise<Buffer> {
+    return new Promise(async (resolve, reject) => {
+      // TODO: Handle Premature EOF
+      while (this.buffer.length < size) {
+        const data = await this.connection.read();
+        if (!data.length) {
+          reject(new HTTPError(400, "Bad Request"));
+          return;
+        }
+        this.buffer.push(data);
+      }
+
+      resolve(this.buffer.subarray(0, size));
+    });
+  }
+
+  consume(size: number) {
+    this.buffer.consume(size);
+  }
+
+  async parseMethod() {
+    const method: string[] = [];
+    let current = METHOD_TRIE.root;
+    while (true) {
+      const c = await this.read(1);
+      const uc = c.toString();
+      if (c.equals(Buffer.from(" ")) && !current.isWord) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      if (c.equals(Buffer.from(" "))) {
+        return method.join("");
+      }
+      if (!current.children.has(uc)) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      method.push(uc);
+      current = current.children.get(uc)!;
+      this.consume(1);
+    }
+  }
+}
+
+class HTTPError extends Error {
+  code: number;
+  constructor(code: number, message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
 class DynamicBuffer {
   data: Buffer;
   length: number;
@@ -25,8 +122,12 @@ class DynamicBuffer {
   }
 
   consume(size: number) {
-    this.data = this.data.subarray(size);
+    this.data.copyWithin(0, size, this.data.length);
     this.length = this.length - size;
+  }
+
+  subarray(start: number, end: number) {
+    return this.data.subarray(start, end);
   }
 }
 
@@ -106,37 +207,14 @@ class TCPConnection {
 }
 
 const serveClient = async (socket: Socket) => {
-  const connection = new TCPConnection(socket);
-  const buffer = new DynamicBuffer();
-  while (true) {
-    const message = readMessage(buffer);
-    console.log("Message: ", message?.toString())
-    if (message && message.equals(Buffer.from("quit\n"))) {
-      await connection.write(Buffer.from("Bye.\n"));
-      socket.destroy();
-      return;
-    }
-    if (message) {
-      const reply = Buffer.concat([Buffer.from("Echo: "), message]);
-      await connection.write(reply);
-      continue;
-    }
-    const data = await connection.read();
-    buffer.push(data);
-    if (!data.length) {
-      break;
-    }
-  }
-};
+  const connection = new HTTPConnection(new TCPConnection(socket), new DynamicBuffer());
 
-const readMessage = (buffer: DynamicBuffer) => {
-  const index = buffer.data.subarray(0, buffer.length).indexOf("\n");
-  if (index < 0) {
-    return null;
+  while (true) {
+    const method = await connection.parseMethod();
+    console.log("METHOD", method);
+    socket.destroy();
+    break;
   }
-  const message = Buffer.from(buffer.data.subarray(0, index + 1));
-  buffer.consume(index + 1);
-  return message;
 };
 
 const initConnection = async (socket: Socket) => {
