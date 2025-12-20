@@ -1,135 +1,197 @@
-class Parser {
-  uri: string;
-  index: number;
+import { HTTPConnection, HTTPError } from "./tcp-server";
+import { HTTP_TRIE, METHOD_TRIE } from "./trie";
 
-  constructor(uri: string) {
-    this.uri = uri;
-    this.index = 0;
+export class HTTPRequestParser {
+  connection: HTTPConnection;
+  constructor(connection: HTTPConnection) {
+    this.connection = connection;
   }
 
-  peek() {
-    if (this.index >= this.uri.length) {
-      throw new Error("Invalid URI");
+  async parseRequest() {
+    const method = await new HTTPMethodParser(this.connection).parseMethod();
+    const uri = await new HTTPUriParser(this.connection).parseURI();
+    const version = await new HTTPVersionParser(this.connection).parseVersion();
+  }
+}
+class HTTPUriParser {
+  connection: HTTPConnection;
+  constructor(connection: HTTPConnection) {
+    this.connection = connection;
+  }
+
+  isHEXDIG(b: number): boolean {
+    return (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x46) || (b >= 0x61 && b <= 0x66);
+  }
+
+  isDIGIT(b: number) {
+    return b >= 0x30 && b <= 0x39;
+  }
+
+  isALPHA(b: number) {
+    return (b >= 0x61 && b <= 0x7a) || (b >= 0x41 && b <= 0x5a);
+  }
+
+  isUnreserved(b: number) {
+    return this.isALPHA(b) || this.isDIGIT(b) || b === 0x2d || b === 0x2e || b === 0x5f || b === 0x7e;
+  }
+
+  isSubDelims(b: number) {
+    return b === 0x21 || b === 0x24 || b === 0x26 || b === 0x27 || b === 0x28 || b === 0x29 || b === 0x2a || b === 0x2b || b === 0x2c || b === 0x3b || b === 0x3d;
+  }
+
+  async parseUnreserved() {
+    const byte = (await this.connection.read(1))[0];
+    if (!this.isUnreserved(byte)) {
+      throw new HTTPError(400, "Bad Request");
     }
-    return this.uri[this.index];
+    this.connection.consume(1);
   }
 
-  consume() {
-    if (this.index >= this.uri.length) {
-      throw new Error("Invalid URI");
+  async parsePctEncoded() {
+    const byte = (await this.connection.read(1))[0];
+    if (byte !== 0x25) {
+      throw new HTTPError(400, "Bad Request");
     }
-    this.index++;
+    this.connection.consume(1);
+    await this.parseHEXDIG();
+    await this.parseHEXDIG();
   }
 
-  hasNext() {
-    return this.index < this.uri.length;
-  }
-
-  isHEXDIG(c: string): boolean {
-    return (c >= "0" && c <= "9") || (c >= "A" && c <= "F");
-  }
-
-  isDIGIT(c: string) {
-    return c >= "0" && c <= "9";
-  }
-
-  isALPHA(c: string) {
-    return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z");
-  }
-
-  isUnreserved(c: string) {
-    return this.isALPHA(c) || this.isDIGIT(c) || c === "-" || c === "." || c === "_" || c === "~";
-  }
-
-  isSubDelims(c: string): boolean {
-    return c === "!" || c === "$" || c === "&" || c === "'" || c === "(" || c === ")" || c === "*" || c === "+" || c === "," || c === ";" || c === "=";
-  }
-
-  parseUnreserved() {
-    const c = this.peek();
-    if (!this.isUnreserved(c)) {
-      throw new Error("Invalid URI");
+  async parseHEXDIG() {
+    const byte = (await this.connection.read(1))[0];
+    if (!this.isHEXDIG(byte)) {
+      throw new HTTPError(400, "Bad Request");
     }
-    this.consume();
-    return c;
+    this.connection.consume(1);
   }
 
-  parsePctEncoded() {
-    const c = this.peek();
-    if (c !== "%") {
-      throw new Error("Invalid URI");
-    }
-    this.consume();
-    const hx1 = this.parseHEXDIG();
-    const hx2 = this.parseHEXDIG();
-    return [c, hx1, hx2].join();
-  }
-
-  parseHEXDIG() {
-    const c = this.peek();
-    if (!this.isHEXDIG(c)) {
-      throw new Error("Invalid URI");
-    }
-    this.consume();
-    return c;
-  }
-
-  parseSubDelims() {
-    const c = this.peek();
+  async parseSubDelims() {
+    const c = (await this.connection.read(1))[0];
     if (!this.isSubDelims(c)) {
-      throw new Error("Invalid URI");
+      throw new HTTPError(400, "Bad Request");
     }
-    this.consume();
+    this.connection.consume(1);
     return c;
   }
 
-  parsePchar() {
-    const c = this.peek();
-    if (this.isUnreserved(c)) {
-      return this.parseUnreserved();
-    } else if (this.isSubDelims(c)) {
-      return this.parseSubDelims();
-    } else if (c === ":" || c === "@") {
-      this.consume();
-      return c;
-    } else if (c === "%") {
-      return this.parsePctEncoded();
+  async parsePchar() {
+    const byte = (await this.connection.read(1))[0];
+    if (this.isUnreserved(byte)) {
+      await this.parseUnreserved();
+    } else if (this.isSubDelims(byte)) {
+      await this.parseSubDelims();
+    } else if (byte === 0x3a || byte === 0x40) {
+      this.connection.consume(1);
+    } else if (byte === 0x25) {
+      await this.parsePctEncoded();
     } else {
-      throw new Error("Invalid URI");
+      throw new HTTPError(400, "Bad Request");
     }
   }
 
-  parseSegement() {
-    const segment = [];
-    while (this.hasNext()) {
-      const c = this.peek();
-      if (c === "/") {
-        return segment.join("");
+  async parseSegement() {
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (byte === 0x20 || byte === 0x2f) {
+        return;
       }
-      const pchar = this.parsePchar();
-      segment.push(pchar);
+      await this.parsePchar();
+    }
+  }
+
+  async parseAbsolutePath() {
+    const byte = (await this.connection.read(1))[0];
+    if (byte !== 0x2f) {
+      throw new HTTPError(400, "Bad Request");
     }
 
-    return segment.join("");
-  }
-
-  parseAbsolutePath() {
-    const absolutePath = [];
-    do {
-      const c = this.peek();
-      if (c !== "/") {
-        throw new Error("Invalid URI");
+    this.connection.consume(1);
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (byte === 0x20) {
+        this.connection.consume(1);
+        return;
       }
-      this.consume();
-      const segment = this.parseSegement();
-      absolutePath.push(["/", segment].join(""));
-    } while (this.hasNext());
-
-    return absolutePath.join("");
+      if (byte !== 0x2f) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      this.connection.consume(1);
+      await this.parseSegement();
+    }
   }
 
-  parseURI() {
-    return this.parseAbsolutePath();
+  async parseURI() {
+    return await this.parseAbsolutePath();
   }
 }
 
+class HTTPMethodParser {
+  connection: HTTPConnection;
+  constructor(connection: HTTPConnection) {
+    this.connection = connection;
+  }
+
+  async parseMethod() {
+    const method: string[] = [];
+    let current = METHOD_TRIE.root;
+    while (true) {
+      const c = await this.connection.read(1);
+      const uc = c.toString();
+      if (c.equals(Buffer.from(" ")) && !current.isWord) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      if (c.equals(Buffer.from(" "))) {
+        this.connection.consume(1);
+        return method.join("");
+      }
+      if (!current.children.has(uc)) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      method.push(uc);
+      current = current.children.get(uc)!;
+      this.connection.consume(1);
+    }
+  }
+}
+
+class HTTPVersionParser {
+  connection: HTTPConnection;
+  constructor(connection: HTTPConnection) {
+    this.connection = connection;
+  }
+
+  async parseVersion() {
+    let current = HTTP_TRIE.root;
+    while (true) {
+      const c = await this.connection.read(1);
+      const uc = c.toString();
+      if (c.equals(Buffer.from("/")) && current.isWord) {
+        this.connection.consume(1);
+        break;
+      }
+      if (!current.children.has(uc)) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      current = current.children.get(uc)!;
+      this.connection.consume(1);
+    }
+
+    const lv = await this.connection.read(1);
+    if (!lv.equals(Buffer.from("1"))) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+    const dot = await this.connection.read(1);
+    if (!dot.equals(Buffer.from("."))) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+
+    const rv = await this.connection.read(1);
+    if (!rv.equals(Buffer.from("1"))) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+    return "1.1";
+  }
+}

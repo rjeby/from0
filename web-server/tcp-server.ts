@@ -1,45 +1,7 @@
 import { createServer, Socket } from "net";
+import { HTTPRequestParser } from "./parser";
 
-class TrieNode {
-  children: Map<string, TrieNode>;
-  isWord: boolean;
-  constructor() {
-    this.children = new Map();
-    this.isWord = false;
-  }
-}
-
-class Trie {
-  root: TrieNode;
-  constructor() {
-    this.root = new TrieNode();
-  }
-
-  insert(word: string) {
-    let current = this.root;
-    for (const c of word) {
-      if (!current.children.has(c)) {
-        current.children.set(c, new TrieNode());
-      }
-      current = current.children.get(c)!;
-    }
-    current.isWord = true;
-  }
-}
-
-const methodTrie = () => {
-  const trie = new Trie();
-  const methods = ["GET", "POST", "PUT", "DELETE"];
-  for (const method of methods) {
-    trie.insert(method);
-  }
-
-  return trie;
-};
-
-const METHOD_TRIE: Trie = methodTrie();
-
-class HTTPConnection {
+export class HTTPConnection {
   connection: TCPConnection;
   buffer: DynamicBuffer;
   constructor(connection: TCPConnection, buffer: DynamicBuffer) {
@@ -49,7 +11,6 @@ class HTTPConnection {
 
   read(size: number): Promise<Buffer> {
     return new Promise(async (resolve, reject) => {
-      // TODO: Handle Premature EOF
       while (this.buffer.length < size) {
         const data = await this.connection.read();
         if (!data.length) {
@@ -66,30 +27,9 @@ class HTTPConnection {
   consume(size: number) {
     this.buffer.consume(size);
   }
-
-  async parseMethod() {
-    const method: string[] = [];
-    let current = METHOD_TRIE.root;
-    while (true) {
-      const c = await this.read(1);
-      const uc = c.toString();
-      if (c.equals(Buffer.from(" ")) && !current.isWord) {
-        throw new HTTPError(400, "Bad Request");
-      }
-      if (c.equals(Buffer.from(" "))) {
-        return method.join("");
-      }
-      if (!current.children.has(uc)) {
-        throw new HTTPError(400, "Bad Request");
-      }
-      method.push(uc);
-      current = current.children.get(uc)!;
-      this.consume(1);
-    }
-  }
 }
 
-class HTTPError extends Error {
+export class HTTPError extends Error {
   code: number;
   constructor(code: number, message: string) {
     super(message);
@@ -210,8 +150,7 @@ const serveClient = async (socket: Socket) => {
   const connection = new HTTPConnection(new TCPConnection(socket), new DynamicBuffer());
 
   while (true) {
-    const method = await connection.parseMethod();
-    console.log("METHOD", method);
+    await new HTTPRequestParser(connection).parseRequest();
     socket.destroy();
     break;
   }
