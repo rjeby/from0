@@ -9,8 +9,18 @@ export class HTTPRequestParser {
 
   async parseRequest() {
     const method = await new HTTPMethodParser(this.connection).parseMethod();
+    await this.parseSP();
     const uri = await new HTTPUriParser(this.connection).parseURI();
+    await this.parseSP();
     const version = await new HTTPVersionParser(this.connection).parseVersion();
+  }
+
+  async parseSP() {
+    const byte = (await this.connection.read(1))[0];
+    if (byte !== 0x20) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
   }
 }
 class HTTPUriParser {
@@ -71,7 +81,6 @@ class HTTPUriParser {
       throw new HTTPError(400, "Bad Request");
     }
     this.connection.consume(1);
-    return c;
   }
 
   async parsePchar() {
@@ -84,6 +93,8 @@ class HTTPUriParser {
       this.connection.consume(1);
     } else if (byte === 0x25) {
       await this.parsePctEncoded();
+    } else if (byte === 0x3f) {
+      return;
     } else {
       throw new HTTPError(400, "Bad Request");
     }
@@ -94,6 +105,22 @@ class HTTPUriParser {
       const byte = (await this.connection.read(1))[0];
       if (byte === 0x20 || byte === 0x2f) {
         return;
+      }
+      if (byte === 0x3f) {
+        return;
+      }
+      await this.parsePchar();
+    }
+  }
+
+  async parseQuery() {
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (byte === 0x20) {
+        return;
+      }
+      if (byte === 0x3f || byte === 0x2f) {
+        this.connection.consume(1);
       }
       await this.parsePchar();
     }
@@ -106,10 +133,10 @@ class HTTPUriParser {
     }
 
     this.connection.consume(1);
+    await this.parseSegement();
     while (true) {
       const byte = (await this.connection.read(1))[0];
-      if (byte === 0x20) {
-        this.connection.consume(1);
+      if (byte === 0x3f || byte === 0x20) {
         return;
       }
       if (byte !== 0x2f) {
@@ -121,7 +148,12 @@ class HTTPUriParser {
   }
 
   async parseURI() {
-    return await this.parseAbsolutePath();
+    await this.parseAbsolutePath();
+    const byte = (await this.connection.read(1))[0];
+    if (byte === 0x3f) {
+      this.connection.consume(1);
+      await this.parseQuery();
+    }
   }
 }
 
@@ -135,20 +167,18 @@ class HTTPMethodParser {
     const method: string[] = [];
     let current = METHOD_TRIE.root;
     while (true) {
-      const c = await this.connection.read(1);
-      const uc = c.toString();
-      if (c.equals(Buffer.from(" ")) && !current.isWord) {
+      const byte = (await this.connection.read(1))[0];
+      if (byte === 0x20 && !current.isWord) {
         throw new HTTPError(400, "Bad Request");
       }
-      if (c.equals(Buffer.from(" "))) {
-        this.connection.consume(1);
+      if (byte === 0x20) {
         return method.join("");
       }
-      if (!current.children.has(uc)) {
+      if (!current.children.has(byte)) {
         throw new HTTPError(400, "Bad Request");
       }
-      method.push(uc);
-      current = current.children.get(uc)!;
+      method.push(String.fromCharCode(byte));
+      current = current.children.get(byte)!;
       this.connection.consume(1);
     }
   }
@@ -163,32 +193,36 @@ class HTTPVersionParser {
   async parseVersion() {
     let current = HTTP_TRIE.root;
     while (true) {
-      const c = await this.connection.read(1);
-      const uc = c.toString();
-      if (c.equals(Buffer.from("/")) && current.isWord) {
-        this.connection.consume(1);
+      const byte = (await this.connection.read(1))[0];
+      if (byte === 0x2f && current.isWord) {
         break;
       }
-      if (!current.children.has(uc)) {
+      if (!current.children.has(byte)) {
         throw new HTTPError(400, "Bad Request");
       }
-      current = current.children.get(uc)!;
+      current = current.children.get(byte)!;
       this.connection.consume(1);
     }
 
-    const lv = await this.connection.read(1);
-    if (!lv.equals(Buffer.from("1"))) {
-      throw new HTTPError(400, "Bad Request");
-    }
-    this.connection.consume(1);
-    const dot = await this.connection.read(1);
-    if (!dot.equals(Buffer.from("."))) {
+    const slash = (await this.connection.read(1))[0];
+    if (slash !== 0x2f) {
       throw new HTTPError(400, "Bad Request");
     }
     this.connection.consume(1);
 
-    const rv = await this.connection.read(1);
-    if (!rv.equals(Buffer.from("1"))) {
+    const lv = (await this.connection.read(1))[0];
+    if (lv !== 0x31) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+    const dot = (await this.connection.read(1))[0];
+    if (dot !== 0x2e) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+
+    const rv = (await this.connection.read(1))[0];
+    if (rv !== 0x31) {
       throw new HTTPError(400, "Bad Request");
     }
     this.connection.consume(1);

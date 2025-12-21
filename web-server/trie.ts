@@ -1,5 +1,5 @@
 class TrieNode {
-  children: Map<string, TrieNode>;
+  children: Map<number, TrieNode>;
   isWord: boolean;
   constructor() {
     this.children = new Map();
@@ -16,10 +16,11 @@ class Trie {
   insert(word: string) {
     let current = this.root;
     for (const c of word) {
-      if (!current.children.has(c)) {
-        current.children.set(c, new TrieNode());
+      let charCode = c.charCodeAt(0);
+      if (!current.children.has(charCode)) {
+        current.children.set(charCode, new TrieNode());
       }
-      current = current.children.get(c)!;
+      current = current.children.get(charCode)!;
     }
     current.isWord = true;
   }
