@@ -13,11 +13,28 @@ export class HTTPRequestParser {
     const uri = await new HTTPUriParser(this.connection).parseURI();
     await this.parseSP();
     const version = await new HTTPVersionParser(this.connection).parseVersion();
+    await this.parseCRLF();
+    const headers = await new HTTPHeadersParser(this.connection).parseHeaders();
+    await this.parseCRLF();
+    console.log("GOOD");
   }
 
   async parseSP() {
     const byte = (await this.connection.read(1))[0];
     if (byte !== 0x20) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+  }
+
+  async parseCRLF() {
+    const fb = (await this.connection.read(1))[0];
+    if (fb !== 0x0d) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+    const sb = (await this.connection.read(1))[0];
+    if (sb !== 0x0a) {
       throw new HTTPError(400, "Bad Request");
     }
     this.connection.consume(1);
@@ -227,5 +244,143 @@ class HTTPVersionParser {
     }
     this.connection.consume(1);
     return "1.1";
+  }
+}
+
+class HTTPHeadersParser {
+  connection: HTTPConnection;
+  constructor(connection: HTTPConnection) {
+    this.connection = connection;
+  }
+
+  isDIGIT(b: number) {
+    return b >= 0x30 && b <= 0x39;
+  }
+
+  isALPHA(b: number) {
+    return (b >= 0x61 && b <= 0x7a) || (b >= 0x41 && b <= 0x5a);
+  }
+
+  isTChar(b: number) {
+    return this.isDIGIT(b) || this.isALPHA(b) || b === 0x21 || b === 0x23 || b === 0x24 || b === 0x25 || b === 0x26 || b === 0x27 || b === 0x2a || b === 0x2b || b === 0x2d || b === 0x2e || b === 0x5e || b === 0x5f || b === 0x60 || b === 0x7c || b === 0x7e;
+  }
+
+  isVCHAR(b: number) {
+    return b >= 0x21 && b <= 0x7e;
+  }
+
+  isObsText(b: number) {
+    return b >= 0x80 && b <= 0xff;
+  }
+
+  isFieldVchar(b: number) {
+    return this.isVCHAR(b) || this.isObsText(b);
+  }
+
+  async parseFieldLine() {
+    await this.parseFieldName();
+    const sc = (await this.connection.read(1))[0];
+    if (sc !== 0x3a) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    await this.parseOWS();
+    await this.parseFieldValue();
+    await this.parseOWS();
+  }
+
+  async parseToken() {
+    await this.parseTchar();
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (!this.isTChar(byte)) {
+        return;
+      }
+      await this.parseTchar();
+    }
+  }
+
+  async parseFieldName() {
+    await this.parseToken();
+  }
+
+  async parseFieldValue() {
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (!this.isFieldVchar(byte)) {
+        return;
+      }
+      await this.parseFieldContent();
+    }
+  }
+
+  async parseFieldContent() {
+    await this.parseFieldVchar();
+    const [fb, sb] = await this.connection.read(2);
+    if (fb !== 0x20 && fb !== 0x09 && !this.isFieldVchar(fb)) {
+      return;
+    }
+    if (sb !== 0x20 && sb !== 0x09 && !this.isFieldVchar(sb)) {
+      await this.parseFieldVchar();
+      return;
+    }
+    this.connection.consume(1);
+    while (true) {
+      const [fb, sb] = await this.connection.read(2);
+      if (sb !== 0x20 && sb !== 0x09 && !this.isFieldVchar(sb)) {
+        await this.parseFieldVchar();
+        return;
+      }
+      this.connection.consume(1);
+    }
+  }
+
+  async parseFieldVchar() {
+    const byte = (await this.connection.read(1))[0];
+    if (!this.isFieldVchar(byte)) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+  }
+
+  async parseTchar() {
+    const byte = (await this.connection.read(1))[0];
+    if (!this.isTChar(byte)) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+  }
+
+  async parseOWS() {
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (byte !== 0x20 && byte !== 0x09) {
+        return;
+      }
+      this.connection.consume(1);
+    }
+  }
+
+  async parseCRLF() {
+    const fb = (await this.connection.read(1))[0];
+    if (fb !== 0x0d) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+    const sb = (await this.connection.read(1))[0];
+    if (sb !== 0x0a) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume(1);
+  }
+
+  async parseHeaders() {
+    while (true) {
+      const byte = (await this.connection.read(1))[0];
+      if (!this.isTChar(byte)) {
+        return;
+      }
+      await this.parseFieldLine();
+      await this.parseCRLF();
+    }
   }
 }
