@@ -9,9 +9,9 @@ export class HTTPConnection {
     this.buffer = buffer;
   }
 
-  read(size: number): Promise<Buffer> {
+  readByte(): Promise<number> {
     return new Promise(async (resolve, reject) => {
-      while (this.buffer.length < size) {
+      while (!this.buffer.isReadable()) {
         const data = await this.connection.read();
         if (!data.length) {
           reject(new HTTPError(400, "Bad Request"));
@@ -20,12 +20,16 @@ export class HTTPConnection {
         this.buffer.push(data);
       }
 
-      resolve(this.buffer.subarray(0, size));
+      resolve(this.buffer.subarray(1)[0]);
     });
   }
 
-  consume(size: number) {
-    this.buffer.consume(size);
+  consume() {
+    this.buffer.consume();
+  }
+
+  unconsume() {
+    this.buffer.unconsume();
   }
 }
 
@@ -40,9 +44,11 @@ export class HTTPError extends Error {
 class DynamicBuffer {
   data: Buffer;
   length: number;
+  beg: number;
   constructor() {
     this.data = Buffer.from("");
     this.length = 0;
+    this.beg = 0;
   }
 
   push(buffer: Buffer) {
@@ -61,13 +67,31 @@ class DynamicBuffer {
     this.length = newLength;
   }
 
-  consume(size: number) {
-    this.data.copyWithin(0, size, this.data.length);
-    this.length = this.length - size;
+  consume() {
+    // this.data.copyWithin(0, size, this.data.length);
+    // this.length = this.length - size;
+    if (this.beg >= this.length) {
+      throw new Error("Invalid Consume Operation");
+    }
+    this.beg++;
   }
 
-  subarray(start: number, end: number) {
-    return this.data.subarray(start, end);
+  unconsume() {
+    if (this.beg <= 0) {
+      throw new Error("Invalid Unconsume Operation");
+    }
+    this.beg--;
+  }
+
+  subarray(end: number) {
+    if (end < 0) {
+      throw new Error("Invalid Subarray Operation");
+    }
+    return this.data.subarray(this.beg, this.beg + end);
+  }
+
+  isReadable() {
+    return this.beg < this.length;
   }
 }
 
