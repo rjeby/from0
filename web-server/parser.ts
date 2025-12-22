@@ -1,7 +1,29 @@
 import { HTTPConnection, HTTPError } from "./tcp-server";
 import { HTTP_TRIE, METHOD_TRIE } from "./trie";
 
-const MAX_HEADER_SIZE = 1024 * 8;
+const MAX_HEADER_SIZE = 8 * 1024;
+const MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
+
+export class HTTPEchoResponse {
+  connection: HTTPConnection;
+  constructor(connection: HTTPConnection) {
+    this.connection = connection;
+  }
+
+  async sendMessage(message: string) {
+    await this.connection.write(Buffer.from(message));
+  }
+
+  async sendContent(contentLength: number) {
+    const data = await this.connection.readBytes(contentLength);
+    await this.connection.write(data);
+    this.connection.skip();
+  }
+
+  sendChunked() {}
+
+  sendRest() {}
+}
 
 class HTTPRequest {
   method: string;
@@ -87,7 +109,9 @@ export class HTTPRequestParser {
     await this.parseCRLF();
     const headers = await this.parseHeaders();
     await this.parseCRLF();
-    return new HTTPRequest(method, uri, version, headers);
+    const request = new HTTPRequest(method, uri, version, headers);
+    this.connection.skip();
+    return request;
   }
 
   async parseSP() {
@@ -362,15 +386,21 @@ export class HTTPRequestParser {
   }
 
   async parseContentLength() {
+    let value = 0;
     const byte = await this.connection.readByte();
     if (!this.isDIGIT(byte)) {
       throw new HTTPError(400, "Bad Request");
     }
+    value = value * 10 + (byte - 0x30);
     this.consume();
     while (true) {
       const byte = await this.connection.readByte();
       if (!this.isDIGIT(byte)) {
         return;
+      }
+      value = value * 10 + (byte - 0x30);
+      if (value > MAX_CONTENT_LENGTH) {
+        throw new HTTPError(400, "Bad Request");
       }
       this.consume();
     }

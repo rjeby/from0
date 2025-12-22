@@ -1,5 +1,5 @@
 import { createServer, Socket } from "net";
-import { HTTPRequestParser } from "./parser";
+import { HTTPEchoResponse, HTTPRequestParser } from "./parser";
 
 export class HTTPConnection {
   connection: TCPConnection;
@@ -7,6 +7,10 @@ export class HTTPConnection {
   constructor(connection: TCPConnection, buffer: DynamicBuffer) {
     this.connection = connection;
     this.buffer = buffer;
+  }
+
+  skip() {
+    this.buffer.skip();
   }
 
   readByte(): Promise<number> {
@@ -22,6 +26,25 @@ export class HTTPConnection {
 
       resolve(this.buffer.readFromBeg(1)[0]);
     });
+  }
+
+  readBytes(size: number): Promise<Buffer> {
+    return new Promise(async (resolve, reject) => {
+      while (this.buffer.length < size) {
+        const data = await this.connection.read();
+        if (!data.length) {
+          reject(new HTTPError(400, "Bad Request"));
+          return;
+        }
+        this.buffer.push(data);
+      }
+
+      resolve(this.buffer.subarray(0, size));
+    });
+  }
+
+  async write(data: Buffer): Promise<void> {
+    await this.connection.write(data);
   }
 
   consume() {
@@ -66,15 +89,17 @@ class DynamicBuffer {
     buffer.copy(this.data, this.length, 0);
     this.length = newLength;
   }
-
-  consume() {
-    // TODO: Clean Buffer
-    // this.data.copyWithin(0, size, this.data.length);
-    // this.length = this.length - size;
-    if (this.beg >= this.length) {
+  consume(size: number = 1) {
+    if (this.beg + size - 1 >= this.length) {
       throw new Error("Invalid Consume Operation");
     }
-    this.beg++;
+    this.beg += size;
+  }
+
+  skip() {
+    this.data.copyWithin(0, this.beg, this.data.length);
+    this.length = this.length - this.beg;
+    this.beg = 0;
   }
 
   unconsume() {
@@ -180,9 +205,27 @@ const serveClient = async (socket: Socket) => {
 
   while (true) {
     const httpRequest = await new HTTPRequestParser(connection).parseRequest();
-    console.log(httpRequest);
-    socket.destroy();
-    break;
+    const httpResponse = new HTTPEchoResponse(connection);
+    const method = httpRequest.method;
+    const uri = httpRequest.uri;
+    const contentLength = Number(httpRequest.getField("content-length"));
+    const transferEncoding = httpRequest.getField("transfer-encoding");
+    if (uri !== "/echo") {
+      throw new HTTPError(400, "Bad Request");
+    }
+
+    if (method === "GET") {
+      await httpResponse.sendMessage("Hello! To send data, please use the echo server: POST /echo\n");
+      continue;
+    }
+
+    if (contentLength > 0) {
+      await httpResponse.sendContent(contentLength);
+    } else if (transferEncoding === "chunked") {
+    } else {
+    }
+
+    console.log("PING");
   }
 };
 

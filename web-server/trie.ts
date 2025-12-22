@@ -28,7 +28,7 @@ class Trie {
 
 const methodTrie = () => {
   const trie = new Trie();
-  const methods = ["GET", "POST", "PUT", "DELETE"];
+  const methods = ["GET", "POST"];
   for (const method of methods) {
     trie.insert(method);
   }
