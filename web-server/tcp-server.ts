@@ -68,6 +68,7 @@ class DynamicBuffer {
   }
 
   consume() {
+    // TODO: Clean Buffer
     // this.data.copyWithin(0, size, this.data.length);
     // this.length = this.length - size;
     if (this.beg >= this.length) {
@@ -178,7 +179,8 @@ const serveClient = async (socket: Socket) => {
   const connection = new HTTPConnection(new TCPConnection(socket), new DynamicBuffer());
 
   while (true) {
-    await new HTTPRequestParser(connection).parseRequest();
+    const httpRequest = await new HTTPRequestParser(connection).parseRequest();
+    console.log(httpRequest);
     socket.destroy();
     break;
   }
