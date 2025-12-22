@@ -15,8 +15,11 @@ export class HTTPRequestParser {
     const version = await new HTTPVersionParser(this.connection).parseVersion();
     await this.parseCRLF();
     const headers = await new HTTPHeadersParser(this.connection).parseHeaders();
+    if (!headers.has("host")) {
+      throw new HTTPError(400, "Bad Request");
+    }
     await this.parseCRLF();
-    console.log("GOOD");
+    console.log([method, uri, version, headers].map((value) => `|${value}|`).join("\t"));
   }
 
   async parseSP() {
@@ -154,12 +157,15 @@ class HTTPUriParser {
   }
 
   async parseURI() {
+    const beg = this.connection.buffer.beg;
     await this.parseAbsolutePath();
     const byte = await this.connection.readByte();
     if (byte === 0x3f) {
       this.connection.consume();
       await this.parseQuery();
     }
+    const end = this.connection.buffer.beg;
+    return this.connection.buffer.subarray(beg, end).toString("ascii");
   }
 }
 
@@ -267,15 +273,20 @@ class HTTPHeadersParser {
   }
 
   async parseFieldLine() {
+    const fieldNameBeg = this.connection.buffer.beg;
     await this.parseFieldName();
+    const fieldNameEnd = this.connection.buffer.beg;
     const sc = await this.connection.readByte();
     if (sc !== 0x3a) {
       throw new HTTPError(400, "Bad Request");
     }
     this.connection.consume();
     await this.parseOWS();
+    const fieldValueBeg = this.connection.buffer.beg;
     await this.parseFieldValue();
+    const fieldValueEnd = this.connection.buffer.beg;
     await this.parseOWS();
+    return [this.connection.buffer.subarray(fieldNameBeg, fieldNameEnd).toString("latin1").toLowerCase(), this.connection.buffer.subarray(fieldValueBeg, fieldValueEnd).toString("latin1")];
   }
 
   async parseToken() {
@@ -363,12 +374,17 @@ class HTTPHeadersParser {
   }
 
   async parseHeaders() {
+    const headers: Map<string, string> = new Map();
     while (true) {
       const byte = await this.connection.readByte();
       if (!this.isTChar(byte)) {
-        return;
+        return headers;
       }
-      await this.parseFieldLine();
+      const [fieldName, fieldValue] = await this.parseFieldLine();
+      if (headers.has(fieldName) && (fieldName === "host" || fieldName === "content-length")) {
+        throw new HTTPError(400, "Bad Request");
+      }
+      headers.set(fieldName, fieldValue);
       await this.parseCRLF();
     }
   }

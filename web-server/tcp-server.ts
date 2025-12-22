@@ -20,7 +20,7 @@ export class HTTPConnection {
         this.buffer.push(data);
       }
 
-      resolve(this.buffer.subarray(1)[0]);
+      resolve(this.buffer.readFromBeg(1)[0]);
     });
   }
 
@@ -83,11 +83,15 @@ class DynamicBuffer {
     this.beg--;
   }
 
-  subarray(end: number) {
-    if (end < 0) {
+  subarray(start: number, end: number) {
+    if (start > end) {
       throw new Error("Invalid Subarray Operation");
     }
-    return this.data.subarray(this.beg, this.beg + end);
+    return this.data.subarray(start, end);
+  }
+
+  readFromBeg(size: number) {
+    return this.subarray(this.beg, this.beg + size);
   }
 
   isReadable() {
