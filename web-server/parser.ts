@@ -8,15 +8,19 @@ const REASON_PHRASE_BY_STATUS_CODE: Record<number, string> = {
   201: "Created",
   400: "Bad Request",
   404: "Not Found",
+  413: "Payload Too Large",
+  431: "Request Header Fields Too Large",
   500: "Internal Server Error",
 };
 
 export class HTTPEchoResponse {
   connection: HTTPConnection;
   response: HTTPResponse;
+  bodyLength: number;
   constructor(connection: HTTPConnection, response: HTTPResponse) {
     this.connection = connection;
     this.response = response;
+    this.bodyLength = 0;
   }
 
   async sendMessage() {
@@ -31,22 +35,86 @@ export class HTTPEchoResponse {
     this.connection.skip();
   }
 
-  sendChunked() {}
+  async sendChunked() {
+    const headers = this.response.generateResponseHeader();
+    await this.connection.write(headers);
+    while (true) {
+      const chunkLength = Number(await this.parseChunkLength());
+      if (!chunkLength) {
+        await this.parseCRLF();
+        await this.parseCRLF();
+        this.bodyLength += 4;
+        return this.bodyLength;
+      }
+      await this.parseCRLF();
+      const chunk = await this.connection.readBytes(chunkLength);
+      await this.connection.write(chunk);
+      this.connection.consume(chunkLength);
+      await this.parseCRLF();
+      this.bodyLength += 4;
+    }
+  }
 
-  sendRest() {}
+  async parseCRLF() {
+    const fb = await this.connection.readByte();
+    if (fb !== 0x0d) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume();
+    const sb = await this.connection.readByte();
+    if (sb !== 0x0a) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    this.connection.consume();
+  }
+
+  isDIGIT(b: number) {
+    return b >= 0x30 && b <= 0x39;
+  }
+
+  async parseChunkLength() {
+    let value = 0;
+    const byte = await this.connection.readByte();
+    if (!this.isDIGIT(byte)) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    value = value * 10 + (byte - 0x30);
+    this.connection.consume();
+    while (true) {
+      const byte = await this.connection.readByte();
+      if (!this.isDIGIT(byte)) {
+        this.bodyLength = this.bodyLength + value;
+        return value;
+      }
+      value = value * 10 + (byte - 0x30);
+      if (value + this.bodyLength > MAX_CONTENT_LENGTH) {
+        throw new HTTPError(413, "Payload Too Large");
+      }
+      this.connection.consume();
+    }
+  }
 }
 
 export class HTTPResponse {
   code: number;
   body: Buffer;
-  constructor(code: number, body: Buffer) {
+  headers: string[][];
+  constructor(code: number, body: Buffer, headers: string[][] = []) {
     this.code = code;
     this.body = body;
+    this.headers = headers;
+    if (this.body.length) {
+      this.headers.push(["Content-Length", body.length.toString()]);
+    }
   }
   generateResponseHeader() {
     const statusLine = `HTTP/1.1 ${this.code.toString()} ${REASON_PHRASE_BY_STATUS_CODE[this.code]} \r\n`;
-    const headers = `X-Powered-By: HTTP Echo Server\r\nContent-Type: charset=utf-8\r\nContent-Lengh: ${this.body.length}\r\n`;
-    return Buffer.from(`${statusLine}${headers}\r\n`);
+    const headers = [`X-Powered-By: HTTP Echo Server\r\nContent-Type: charset=utf-8\r\n`];
+    for (const header of this.headers) {
+      headers.push(`${header[0]}: ${header[1]}\r\n`);
+    }
+
+    return Buffer.from(`${statusLine}${headers.join("")}\r\n`);
   }
 }
 
@@ -425,7 +493,7 @@ export class HTTPRequestParser {
       }
       value = value * 10 + (byte - 0x30);
       if (value > MAX_CONTENT_LENGTH) {
-        throw new HTTPError(400, "Bad Request");
+        throw new HTTPError(413, "Payload Too Large");
       }
       this.consume();
     }

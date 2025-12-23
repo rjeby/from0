@@ -13,6 +13,10 @@ export class HTTPConnection {
     this.buffer.skip();
   }
 
+  close() {
+    this.connection.socket.destroy();
+  }
+
   readByte(): Promise<number> {
     return new Promise(async (resolve, reject) => {
       while (!this.buffer.isReadable()) {
@@ -30,7 +34,7 @@ export class HTTPConnection {
 
   readBytes(size: number): Promise<Buffer> {
     return new Promise(async (resolve, reject) => {
-      while (this.buffer.length < size) {
+      while (this.buffer.length - this.buffer.beg < size) {
         const data = await this.connection.read();
         if (!data.length) {
           reject(new HTTPError(400, "Bad Request"));
@@ -39,7 +43,19 @@ export class HTTPConnection {
         this.buffer.push(data);
       }
 
-      resolve(this.buffer.subarray(0, size));
+      resolve(this.buffer.subarray(this.buffer.beg, this.buffer.beg + size));
+    });
+  }
+
+  readAllConnection(): Promise<Buffer> {
+    return new Promise(async (resolve, reject) => {
+      while (true) {
+        const data = await this.connection.read();
+        if (!data.length) {
+          return Buffer.from(this.buffer.subarray(0, this.buffer.length));
+        }
+        this.buffer.push(data);
+      }
     });
   }
 
@@ -202,7 +218,6 @@ class TCPConnection {
 
 const serveClient = async (connection: HTTPConnection) => {
   while (true) {
-    console.log("PING");
     const httpRequest = await new HTTPRequestParser(connection).parseRequest();
     const method = httpRequest.method;
     const uri = httpRequest.uri;
@@ -225,10 +240,15 @@ const serveClient = async (connection: HTTPConnection) => {
       connection.consume(contentLength);
       connection.skip();
     } else if (transferEncoding === "chunked") {
+      const response = new HTTPResponse(200, Buffer.from(""), [["Transfer-Encoding", "chunked"]]);
+      await new HTTPEchoResponse(connection, response).sendChunked();
+      connection.skip();
     } else {
+      const body = await connection.readAllConnection();
+      const response = new HTTPResponse(200, body);
+      await new HTTPEchoResponse(connection, response).sendMessage();
+      break;
     }
-
-    console.log("PONG");
   }
 };
 
