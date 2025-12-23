@@ -1,5 +1,5 @@
 import { createServer, Socket } from "net";
-import { HTTPEchoResponse, HTTPRequestParser } from "./parser";
+import { HTTPEchoResponse, HTTPRequestParser, HTTPResponse } from "./parser";
 
 export class HTTPConnection {
   connection: TCPConnection;
@@ -47,8 +47,8 @@ export class HTTPConnection {
     await this.connection.write(data);
   }
 
-  consume() {
-    this.buffer.consume();
+  consume(size: number = 1) {
+    this.buffer.consume(size);
   }
 
   unconsume() {
@@ -200,41 +200,51 @@ class TCPConnection {
   }
 }
 
-const serveClient = async (socket: Socket) => {
-  const connection = new HTTPConnection(new TCPConnection(socket), new DynamicBuffer());
-
+const serveClient = async (connection: HTTPConnection) => {
   while (true) {
+    console.log("PING");
     const httpRequest = await new HTTPRequestParser(connection).parseRequest();
-    const httpResponse = new HTTPEchoResponse(connection);
     const method = httpRequest.method;
     const uri = httpRequest.uri;
     const contentLength = Number(httpRequest.getField("content-length"));
     const transferEncoding = httpRequest.getField("transfer-encoding");
     if (uri !== "/echo") {
-      throw new HTTPError(400, "Bad Request");
+      throw new HTTPError(404, "Not Found");
     }
 
     if (method === "GET") {
-      await httpResponse.sendMessage("Hello! To send data, please use the echo server: POST /echo\n");
+      const response = new HTTPResponse(200, Buffer.from("Hello! To send data, please use the echo server: POST /echo\n"));
+      await new HTTPEchoResponse(connection, response).sendMessage();
       continue;
     }
 
     if (contentLength > 0) {
-      await httpResponse.sendContent(contentLength);
+      const body = await connection.readBytes(contentLength);
+      const response = new HTTPResponse(200, body);
+      await new HTTPEchoResponse(connection, response).sendMessage();
+      connection.consume(contentLength);
+      connection.skip();
     } else if (transferEncoding === "chunked") {
     } else {
     }
 
-    console.log("PING");
+    console.log("PONG");
   }
 };
 
 const initConnection = async (socket: Socket) => {
   console.log(`New Connection ${socket.remoteAddress}:${socket.remotePort}`);
+  const connection = new HTTPConnection(new TCPConnection(socket), new DynamicBuffer());
   try {
-    await serveClient(socket);
+    await serveClient(connection);
   } catch (err) {
     console.error(err);
+    if (err instanceof HTTPError) {
+      const response = new HTTPResponse(err.code, Buffer.from(err.message));
+      try {
+        await new HTTPEchoResponse(connection, response).sendMessage();
+      } catch (err) {}
+    }
   } finally {
     socket.destroy();
   }

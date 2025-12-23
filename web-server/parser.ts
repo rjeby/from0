@@ -3,15 +3,26 @@ import { HTTP_TRIE, METHOD_TRIE } from "./trie";
 
 const MAX_HEADER_SIZE = 8 * 1024;
 const MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
+const REASON_PHRASE_BY_STATUS_CODE: Record<number, string> = {
+  200: "OK",
+  201: "Created",
+  400: "Bad Request",
+  404: "Not Found",
+  500: "Internal Server Error",
+};
 
 export class HTTPEchoResponse {
   connection: HTTPConnection;
-  constructor(connection: HTTPConnection) {
+  response: HTTPResponse;
+  constructor(connection: HTTPConnection, response: HTTPResponse) {
     this.connection = connection;
+    this.response = response;
   }
 
-  async sendMessage(message: string) {
-    await this.connection.write(Buffer.from(message));
+  async sendMessage() {
+    const headers = this.response.generateResponseHeader();
+    await this.connection.write(headers);
+    await this.connection.write(this.response.body);
   }
 
   async sendContent(contentLength: number) {
@@ -23,6 +34,20 @@ export class HTTPEchoResponse {
   sendChunked() {}
 
   sendRest() {}
+}
+
+export class HTTPResponse {
+  code: number;
+  body: Buffer;
+  constructor(code: number, body: Buffer) {
+    this.code = code;
+    this.body = body;
+  }
+  generateResponseHeader() {
+    const statusLine = `HTTP/1.1 ${this.code.toString()} ${REASON_PHRASE_BY_STATUS_CODE[this.code]} \r\n`;
+    const headers = `X-Powered-By: HTTP Echo Server\r\nContent-Type: charset=utf-8\r\nContent-Lengh: ${this.body.length}\r\n`;
+    return Buffer.from(`${statusLine}${headers}\r\n`);
+  }
 }
 
 class HTTPRequest {
