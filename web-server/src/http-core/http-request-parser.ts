@@ -1,160 +1,33 @@
-import { HTTPConnection, HTTPError } from "./tcp-server";
-import { HTTP_TRIE, METHOD_TRIE } from "./trie";
+import { HTTPConnection } from "./http-connection";
+import { HTTP_TRIE, METHOD_TRIE } from "../data-structures/trie";
+import { HTTPError } from "./http-error";
+import { HTTPRequest } from "./http-request";
 
 const MAX_HEADER_SIZE = 8 * 1024;
-const MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
-const REASON_PHRASE_BY_STATUS_CODE: Record<number, string> = {
-  200: "OK",
-  201: "Created",
-  400: "Bad Request",
-  404: "Not Found",
-  413: "Payload Too Large",
-  431: "Request Header Fields Too Large",
-  500: "Internal Server Error",
-};
-
-export class HTTPEchoResponse {
-  connection: HTTPConnection;
-  response: HTTPResponse;
-  bodyLength: number;
-  constructor(connection: HTTPConnection, response: HTTPResponse) {
-    this.connection = connection;
-    this.response = response;
-    this.bodyLength = 0;
-  }
-
-  async sendMessage() {
-    const headers = this.response.generateResponseHeader();
-    await this.connection.write(headers);
-    await this.connection.write(this.response.body);
-  }
-
-  async sendContent(contentLength: number) {
-    const data = await this.connection.readBytes(contentLength);
-    await this.connection.write(data);
-    this.connection.skip();
-  }
-
-  async sendChunked() {
-    const headers = this.response.generateResponseHeader();
-    await this.connection.write(headers);
-    while (true) {
-      const chunkLength = Number(await this.parseChunkLength());
-      if (!chunkLength) {
-        await this.parseCRLF();
-        await this.parseCRLF();
-        this.bodyLength += 4;
-        return this.bodyLength;
-      }
-      await this.parseCRLF();
-      const chunk = await this.connection.readBytes(chunkLength);
-      await this.connection.write(chunk);
-      this.connection.consume(chunkLength);
-      await this.parseCRLF();
-      this.bodyLength += 4;
-    }
-  }
-
-  async parseCRLF() {
-    const fb = await this.connection.readByte();
-    if (fb !== 0x0d) {
-      throw new HTTPError(400, "Bad Request");
-    }
-    this.connection.consume();
-    const sb = await this.connection.readByte();
-    if (sb !== 0x0a) {
-      throw new HTTPError(400, "Bad Request");
-    }
-    this.connection.consume();
-  }
-
-  isDIGIT(b: number) {
-    return b >= 0x30 && b <= 0x39;
-  }
-
-  async parseChunkLength() {
-    let value = 0;
-    const byte = await this.connection.readByte();
-    if (!this.isDIGIT(byte)) {
-      throw new HTTPError(400, "Bad Request");
-    }
-    value = value * 10 + (byte - 0x30);
-    this.connection.consume();
-    while (true) {
-      const byte = await this.connection.readByte();
-      if (!this.isDIGIT(byte)) {
-        this.bodyLength = this.bodyLength + value;
-        return value;
-      }
-      value = value * 10 + (byte - 0x30);
-      if (value + this.bodyLength > MAX_CONTENT_LENGTH) {
-        throw new HTTPError(413, "Payload Too Large");
-      }
-      this.connection.consume();
-    }
-  }
-}
-
-export class HTTPResponse {
-  code: number;
-  body: Buffer;
-  headers: string[][];
-  constructor(code: number, body: Buffer, headers: string[][] = []) {
-    this.code = code;
-    this.body = body;
-    this.headers = headers;
-    if (this.body.length) {
-      this.headers.push(["Content-Length", body.length.toString()]);
-    }
-  }
-  generateResponseHeader() {
-    const statusLine = `HTTP/1.1 ${this.code.toString()} ${REASON_PHRASE_BY_STATUS_CODE[this.code]} \r\n`;
-    const headers = [`X-Powered-By: HTTP Echo Server\r\nContent-Type: charset=utf-8\r\n`];
-    for (const header of this.headers) {
-      headers.push(`${header[0]}: ${header[1]}\r\n`);
-    }
-
-    return Buffer.from(`${statusLine}${headers.join("")}\r\n`);
-  }
-}
-
-class HTTPRequest {
-  method: string;
-  uri: string;
-  version: string;
-  header: Map<string, string>;
-
-  constructor(method: string, uri: string, version: string, header: Map<string, string>) {
-    this.method = method;
-    this.uri = uri;
-    this.version = version;
-    this.header = header;
-  }
-
-  getField(name: string) {
-    return this.header.get(name);
-  }
-}
+const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
 
 export class HTTPRequestParser {
   connection: HTTPConnection;
-  requestHeaderLength: number;
+  requestHeaderSize: number;
+  requestBodySize: number;
+
   constructor(connection: HTTPConnection) {
     this.connection = connection;
-    this.requestHeaderLength = 0;
+    this.requestHeaderSize = 0;
+    this.requestBodySize = 0;
   }
 
   consume() {
-    if (this.requestHeaderLength >= MAX_HEADER_SIZE) {
+    if (this.requestHeaderSize >= MAX_HEADER_SIZE) {
       throw new HTTPError(431, "Request Header Fields Too Large");
     }
     this.connection.consume();
-    this.requestHeaderLength++;
+    this.requestHeaderSize++;
   }
 
   unconsume() {
     this.connection.unconsume();
-    this.requestHeaderLength--;
+    this.requestHeaderSize--;
   }
 
   isHEXDIG(b: number): boolean {
@@ -194,6 +67,80 @@ export class HTTPRequestParser {
   }
 
   async parseRequest() {
+    const [method, uri, version, headers] = await this.parseRequestHeader();
+    this.connection.skip();
+    const body = await this.parseBody(method, headers);
+    this.connection.skip();
+    return new HTTPRequest(method, uri, version, headers, body);
+  }
+
+  async parseBody(method: string, header: Map<string, string>) {
+    if (method === "GET") {
+      return Buffer.from("");
+    }
+
+    const contentLength = Number(header.get("content-length"));
+    const transferEncoding = header.get("transfer-encoding");
+
+    if (contentLength > 0) {
+      return await this.parseBodyByContentLength(contentLength);
+    } else if (transferEncoding === "chunked") {
+      return await this.parseChunkedBody();
+    } else {
+      return await this.parseFullConnection();
+    }
+  }
+
+  async parseFullConnection() {
+    const body = await this.connection.readAllConnection();
+    return body;
+  }
+
+  async parseChunkedBody() {
+    while (true) {
+      const chunkLength = Number(await this.parseChunkLength());
+      if (!chunkLength) {
+        await this.parseCRLF();
+        await this.parseCRLF();
+        this.requestBodySize += 4;
+        return Buffer.from(this.connection.buffer.readAll());
+      }
+      await this.parseCRLF();
+      await this.connection.readBytes(chunkLength);
+      this.connection.consume(chunkLength);
+      await this.parseCRLF();
+      this.requestBodySize += 4;
+    }
+  }
+
+  async parseChunkLength() {
+    let value = 0;
+    const byte = await this.connection.readByte();
+    if (!this.isDIGIT(byte)) {
+      throw new HTTPError(400, "Bad Request");
+    }
+    value = value * 10 + (byte - 0x30);
+    this.connection.consume();
+    while (true) {
+      const byte = await this.connection.readByte();
+      if (!this.isDIGIT(byte)) {
+        this.requestBodySize = this.requestBodySize + value;
+        return value;
+      }
+      value = value * 10 + (byte - 0x30);
+      if (value + this.requestBodySize > MAX_CONTENT_SIZE) {
+        throw new HTTPError(413, "Payload Too Large");
+      }
+      this.connection.consume();
+    }
+  }
+
+  async parseBodyByContentLength(contentLength: number) {
+    const body = await this.connection.readBytes(contentLength);
+    return body;
+  }
+
+  async parseRequestHeader(): Promise<[string, string, string, Map<string, string>]> {
     const method = await this.parseMethod();
     await this.parseSP();
     const uri = await this.parseURI();
@@ -202,9 +149,7 @@ export class HTTPRequestParser {
     await this.parseCRLF();
     const headers = await this.parseHeaders();
     await this.parseCRLF();
-    const request = new HTTPRequest(method, uri, version, headers);
-    this.connection.skip();
-    return request;
+    return [method, uri, version, headers];
   }
 
   async parseSP() {
@@ -492,7 +437,7 @@ export class HTTPRequestParser {
         return;
       }
       value = value * 10 + (byte - 0x30);
-      if (value > MAX_CONTENT_LENGTH) {
+      if (value > MAX_CONTENT_SIZE) {
         throw new HTTPError(413, "Payload Too Large");
       }
       this.consume();

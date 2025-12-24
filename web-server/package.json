@@ -5,9 +5,9 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "tsx --watch tcp-server.ts"
+    "start": "tsx --watch src/index.ts"
   },
   "dependencies": {
     "node": "^24.12.0"

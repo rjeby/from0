@@ -26,21 +26,13 @@ class Trie {
   }
 }
 
-const methodTrie = () => {
+const initTrie = (words: string[]) => {
   const trie = new Trie();
-  const methods = ["GET", "POST"];
-  for (const method of methods) {
-    trie.insert(method);
+  for (const word of words) {
+    trie.insert(word);
   }
-
   return trie;
 };
 
-const httpTrie = () => {
-  const trie = new Trie();
-  trie.insert("HTTP");
-  return trie;
-};
-
-export const METHOD_TRIE: Trie = methodTrie();
-export const HTTP_TRIE: Trie = httpTrie();
+export const METHOD_TRIE: Trie = initTrie(["GET", "POST"]);
+export const HTTP_TRIE: Trie = initTrie(["HTTP"]);
