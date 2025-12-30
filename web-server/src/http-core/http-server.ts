@@ -44,7 +44,7 @@ class HTTPServer {
               break;
             }
           default:
-            throw new HTTPError(400, "Not Found");
+            throw new HTTPError(404, "Not Found");
         }
       }
     } catch (err) {

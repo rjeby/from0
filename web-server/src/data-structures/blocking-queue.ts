@@ -106,8 +106,8 @@ export class BlockingQueue<T> {
     });
   }
 
-  consumer() {
-    return new Promise((resolve, reject) => {
+  consume() : Promise<T | null> {
+    return new Promise((resolve) => {
       if (this.isClosed) {
         resolve(null);
       }
