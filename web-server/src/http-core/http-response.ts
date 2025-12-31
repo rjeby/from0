@@ -25,7 +25,9 @@ export class HTTPResponse {
   async send(connection: HTTPConnection) {
     const header = this.generateResponseHeader();
     await connection.write(header);
-    await connection.write(this.body);
+    if (this.body.length) {
+      await connection.write(this.body);
+    }
   }
 }
 
@@ -36,5 +38,6 @@ const REASON_PHRASE_BY_STATUS_CODE: Record<number, string> = {
   404: "Not Found",
   413: "Payload Too Large",
   431: "Request Header Fields Too Large",
+  101: "Switching Protocols",
   500: "Internal Server Error",
 };

@@ -5,6 +5,7 @@ import { DynamicBuffer } from "../data-structures/dynamic-buffer";
 import { HTTPError } from "./http-error";
 import { HTTPRequestParser } from "./http-request-parser";
 import { HTTPResponse } from "./http-response";
+import { createHash } from "crypto";
 
 class HTTPServer {
   socket: Server;
@@ -33,6 +34,18 @@ class HTTPServer {
         const httpRequest = await new HTTPRequestParser(connection).parseRequest();
         switch (httpRequest.uri) {
           case "/echo":
+            if (httpRequest.method === "GET" && httpRequest.switchProtocol()) {
+              const secWebSocketKey = httpRequest.getField("sec-websocket-key")!;
+              const GUID = `258EAFA5-E914-47DA-95CA-C5AB0DC85B11`;
+              const secWebSocketAccept = createHash("sha1").update(secWebSocketKey).update(GUID).digest("base64");
+              const httpResponse = new HTTPResponse(101, Buffer.from(""), [
+                ["Upgrade", "websocket"],
+                ["Connection", "Upgrade"],
+                ["Sec-WebSocket-Accept", secWebSocketAccept],
+              ]);
+              await httpResponse.send(connection);
+              break;
+            }
             if (httpRequest.method === "GET") {
               const httpResponse = new HTTPResponse(200, Buffer.from("Hello! To send data, please use the echo server: POST /echo"));
               await httpResponse.send(connection);
