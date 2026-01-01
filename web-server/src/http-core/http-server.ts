@@ -6,6 +6,7 @@ import { HTTPError } from "./http-error";
 import { HTTPRequestParser } from "./http-request-parser";
 import { HTTPResponse } from "./http-response";
 import { createHash } from "crypto";
+import { WSServer } from "../ws-core/ws-server";
 
 class HTTPServer {
   socket: Server;
@@ -44,6 +45,7 @@ class HTTPServer {
                 ["Sec-WebSocket-Accept", secWebSocketAccept],
               ]);
               await httpResponse.send(connection);
+              await new WSServer(connection).serve();
               break;
             }
             if (httpRequest.method === "GET") {

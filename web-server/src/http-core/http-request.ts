@@ -1,4 +1,4 @@
-import { SecWebSocketKeyParser } from "../ws-core/sec-ws-key-praser";
+import { SecWebSocketKeyParser } from "../ws-core/sec-ws-key-parser";
 
 export class HTTPRequest {
   method: string;

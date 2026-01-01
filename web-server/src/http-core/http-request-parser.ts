@@ -71,7 +71,8 @@ export class HTTPRequestParser {
     this.connection.skip();
     const body = await this.parseBody(method, headers);
     this.connection.skip();
-    
+    console.log(body.toString(), "###");
+
     return new HTTPRequest(method, uri, version, headers, body);
   }
 
@@ -93,7 +94,8 @@ export class HTTPRequestParser {
   }
 
   async parseFullConnection() {
-    const body = await this.connection.readAllConnection();
+    const body = Buffer.from(await this.connection.readAllConnection());
+    this.connection.consume(body.length);
     return body;
   }
 
@@ -137,8 +139,9 @@ export class HTTPRequestParser {
   }
 
   async parseBodyByContentLength(contentLength: number) {
-    const body = await this.connection.readBytes(contentLength);
-    return body;
+    await this.connection.readBytes(contentLength);
+    this.connection.consume(contentLength);
+    return Buffer.from(this.connection.buffer.readAll());
   }
 
   async parseRequestHeader(): Promise<[string, string, string, Map<string, string>]> {
@@ -264,12 +267,12 @@ export class HTTPRequestParser {
   async parseURI() {
     const beg = this.connection.buffer.beg;
     await this.parseAbsolutePath();
+    const end = this.connection.buffer.beg;
     const byte = await this.connection.readByte();
     if (byte === 0x3f) {
       this.consume();
       await this.parseQuery();
     }
-    const end = this.connection.buffer.beg;
     return this.connection.buffer.subarray(beg, end).toString("ascii");
   }
 
