@@ -8,11 +8,8 @@ export class WSServer {
   }
   async rcvServer() {
     while (true) {
-      console.log("Parsing Message");
       const wsMessage = await new WSMessageParser(this.connection).parse();
-      console.log("| START");
-      wsMessage.toString();
-      console.log("| END");
+      
     }
   }
 

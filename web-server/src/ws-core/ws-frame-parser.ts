@@ -1,7 +1,8 @@
 import { HTTPConnection } from "../http-core/http-connection";
+import { WSError } from "./ws-error";
 import { WSMessage } from "./ws-message";
 
-const MAX_MESSAGE_SIZE = 100 * 1024 * 1024;
+const MAX_MESSAGE_SIZE = 10 * 1024 * 1024;
 
 export class WSMessageParser {
   connection: HTTPConnection;
@@ -17,7 +18,7 @@ export class WSMessageParser {
 
   addFragmentSize(fragementSize: number) {
     if (this.messageSize + fragementSize > MAX_MESSAGE_SIZE) {
-      throw new Error("Max Message Size Limit Exceeded");
+      throw new WSError("Max Message Size Limit Exceeded");
     }
     this.messageSize += fragementSize;
   }
@@ -70,7 +71,7 @@ export class WSMessageParser {
     const fin = byte >> 7;
     const rsv = (byte >> 4) & 0b111;
     if (rsv) {
-      throw new Error("Invalid RSV");
+      throw new WSError("Invalid RSV");
     }
     const opcode = byte & 0b1111;
     this.consume();
@@ -111,7 +112,7 @@ export class WSMessageParser {
     let length = 0;
     const msbByte = await this.connection.readByte();
     if (msbByte >> 7) {
-      throw new Error("Invalid Payload Length");
+      throw new WSError("Invalid Payload Length");
     }
     this.connection.consume();
     for (let index = 0; index < 3; index++) {
