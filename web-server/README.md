@@ -5,6 +5,8 @@ The server listens for incoming HTTP requests (POST /echo) and responds by echoi
 
 This project is intentionally simple and focuses on the basics of the HTTP/1.1 protocol.
 
+In addition, the server includes a minimal **WebSocket** (WS) echo implementation, handling the basic WebSocket handshake and frame parsing to echo messages back to the client.
+
 ---
 
 ## How to Start the Server

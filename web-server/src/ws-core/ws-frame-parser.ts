@@ -31,13 +31,9 @@ export class WSMessageParser {
 
   async parseFrame(): Promise<[number, number, number, Buffer]> {
     const [fin, opcode] = await this.parseMSByte();
-    // console.log("| FIN: ", fin, "| OPCODE: ", opcode);
     const [mask, length] = await this.parsePayloadLength();
-    // console.log("| MASK: ", fin, "| LENGTH: ", opcode);
     const maskingKey = await this.parseMaskingKey(mask);
-    // console.log("| MASKING KEY: ", maskingKey);
     const payload = await this.parsePayload(length, maskingKey);
-    // console.log("| PAYLOAD: ", payload);
     return [fin, opcode, maskingKey, payload];
   }
 

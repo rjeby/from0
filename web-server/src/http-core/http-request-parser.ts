@@ -71,8 +71,6 @@ export class HTTPRequestParser {
     this.connection.skip();
     const body = await this.parseBody(method, headers);
     this.connection.skip();
-    console.log(body.toString(), "###");
-
     return new HTTPRequest(method, uri, version, headers, body);
   }
 
