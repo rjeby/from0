@@ -4,13 +4,15 @@ list        := "(" ws operator ws expr ws expr ws ")"
 
 operator    := "+" / "-" / "*" / "/"
 
-atom        := symbol / number / string
+atom        := symbol / number / string / boolean
 
 symbol      := ALPHA *(ALPHA / DIGIT / "-" / "_")
 
 number      := ["-"] 1*DIGIT
 
 string      := DQUOTE *(%x20-21 / %x23-7E) DQUOTE
+
+boolean     := "true" / "false"
 
 ws          := *(SP / HTAB / CR / LF)
 

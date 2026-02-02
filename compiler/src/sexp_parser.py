@@ -1,3 +1,6 @@
+trie_type = dict[str, "trie_type"] | bool
+
+
 class Parser:
     def __init__(self, sexpr: str):
         self.sexpr: str = sexpr
@@ -7,6 +10,11 @@ class Parser:
         if self.index >= len(self.sexpr):
             raise Exception("Invalid SEXPR")
         return self.sexpr[self.index]
+
+    def lookahead(self, n: int):
+        if n <= 0 or self.index + n - 1 >= len(self.sexpr):
+            return None
+        return self.sexpr[self.index : self.index + n]
 
     def consume(self):
         if self.index >= len(self.sexpr):
@@ -48,12 +56,40 @@ class Parser:
 
     def parse_atom(self):
         c = self.peek()
-        if self.isALPHA(c):
-            return self.parse_symbol()
         if self.isDEQUOTE(c):
             return self.parse_string()
         if c == "-" or self.isDIGIT(c):
             return self.parse_number()
+        peek4 = self.lookahead(4)
+        peek5 = self.lookahead(5)
+        peek6 = self.lookahead(6)
+        if (
+            peek4 == "true"
+            and (
+                not peek5
+                or self.isSP(peek5[-1])
+                or self.isHTAB(peek5[-1])
+                or self.isCR(peek5[-1])
+                or self.isLF(peek5[-1])
+                or peek5[-1] == ")"
+            )
+        ) or (
+            peek5 == "false"
+            and (
+                not peek6
+                or self.isSP(peek6[-1])
+                or self.isHTAB(peek6[-1])
+                or self.isCR(peek6[-1])
+                or self.isLF(peek6[-1])
+                or peek6[-1] == ")"
+
+            )
+        ):
+            return self.parse_boolean()
+
+        if self.isALPHA(c):
+            return self.parse_symbol()
+
         raise Exception("Invalid SEXPR")
 
     def parse_symbol(self):
@@ -117,6 +153,23 @@ class Parser:
         string.append(c)
         self.consume()
         return "".join(string)
+
+    def parse_boolean(self):
+        trie: trie_type = {
+            "t": {"r": {"u": {"e": True}}},
+            "f": {"a": {"l": {"s": {"e": False}}}},
+        }
+        while not self.hasReachedEOF():
+            if isinstance(trie, bool):
+                return "true" if trie else "false"
+            c = self.peek()
+            if not c in trie:
+                raise Exception("Invalid SEXPR")
+            self.consume()
+            trie = trie[c]
+        if not isinstance(trie, bool):
+            raise Exception("Invalid SEXPR")
+        return "true" if trie else "false"
 
     def parse_ws(self):
         while not self.hasReachedEOF():

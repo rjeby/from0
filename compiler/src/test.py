@@ -16,6 +16,13 @@ test_suite: dict[str, str] = {
     '"hello"': '"hello"',
     '"A B C!"': '"A B C!"',
     '"123!"': '"123!"',
+    # Atoms: booleans
+    "true": '"true"',
+    "false": '"false"',
+    # Booleans in expressions
+    "(+ true false)": '["+", "true", "false"]',
+    "(+ 1 true)": '["+", "1", "true"]',
+    "(+ false 0)": '["+", "false", "0"]',
     # Single operator lists
     "(+ 1 2)": '["+", "1", "2"]',
     "(- x y)": '["-", "x", "y"]',
@@ -25,6 +32,9 @@ test_suite: dict[str, str] = {
     "(+ 1 (* 2 3))": '["+", "1", ["*", "2", "3"]]',
     "(* (+ 1 2) (- 4 3))": '["*", ["+", "1", "2"], ["-", "4", "3"]]',
     "(/ (- 10 2) (+ 1 1))": '["/", ["-", "10", "2"], ["+", "1", "1"]]',
+    # Atoms: booleans
+    "true": '"true"',
+    "false": '"false"',
     # Deeply nested
     "(+ (* (- 3 1) (/ 8 2)) 7)": '["+", ["*", ["-", "3", "1"], ["/", "8", "2"]], "7"]',
     # Whitespace variations
@@ -38,6 +48,12 @@ test_suite: dict[str, str] = {
     '(+ "hello" 5)': '["+", "hello", "5"]',
     # Very deep nesting
     "(+ (+ (+ 1 2) (+ 3 4)) (+ 5 6))": '["+", ["+", ["+", "1", "2"], ["+", "3", "4"]], ["+", "5", "6"]]',
+    # Boolean prefix edge cases (should be symbols)
+    "truex": '"truex"',
+    "falsey": '"falsey"',
+    # Boolean-looking strings
+    '"true"': '"true"',
+    '"false"': '"false"',
 }
 
 
