@@ -1,18 +1,14 @@
 expr        := atom / list
 
-list        := "(" ws operator ws expr ws expr ws ")"
+list        := "(" ws (expr (ws expr)*)? ws ")"
 
-operator    := "+" / "-" / "*" / "/"
-
-atom        := symbol / number / string / boolean
+atom        := symbol / number / string
 
 symbol      := ALPHA *(ALPHA / DIGIT / "-" / "_")
 
-number      := ["-"] 1*DIGIT
+number      := 1*DIGIT
 
 string      := DQUOTE *(%x20-21 / %x23-7E) DQUOTE
-
-boolean     := "true" / "false"
 
 ws          := *(SP / HTAB / CR / LF)
 

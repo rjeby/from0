@@ -1,4 +1,5 @@
-trie_type = dict[str, "trie_type"] | bool
+atom_type = str | list[int | str]
+sexp_type = atom_type | list["sexp_type"]
 
 
 class Parser:
@@ -8,218 +9,174 @@ class Parser:
 
     def peek(self):
         if self.index >= len(self.sexpr):
-            raise Exception("Invalid SEXPR")
+            return None
         return self.sexpr[self.index]
 
-    def lookahead(self, n: int):
-        if n <= 0 or self.index + n - 1 >= len(self.sexpr):
-            return None
-        return self.sexpr[self.index : self.index + n]
-
     def consume(self):
-        if self.index >= len(self.sexpr):
-            raise Exception("Invalid SEXPR")
         self.index += 1
 
-    def hasReachedEOF(self):
-        return self.index == len(self.sexpr)
-
     def parse(self):
-        sexp = self.parse_exp()
-        if not self.hasReachedEOF():
-            raise Exception("Invalid SEXPR")
+        sexp: sexp_type = self.parse_exp()
+        if self.peek():
+            raise Exception("Invalid EOF")
         return sexp
 
-    def parse_exp(self) -> str:
+    def parse_exp(self) -> sexp_type:
         c = self.peek()
+        if not c or (
+            c != "("
+            and not self.is_DEQUOTE(c)
+            and not self.is_DIGIT(c)
+            and not self.is_ALPHA(c)
+        ):
+            raise Exception("Invalid EXP")
         if c == "(":
             return self.parse_list()
         return self.parse_atom()
 
     def parse_list(self):
+        ls: list[sexp_type] = []
         c = self.peek()
-        if not c == "(":
-            raise Exception("Invalid SEXPR")
+        if not c or c != "(":
+            raise Exception("Invalid List")
         self.consume()
         self.parse_ws()
-        op = self.parse_operator()
-        self.parse_ws()
-        lf = self.parse_exp()
-        self.parse_ws()
-        rg = self.parse_exp()
-        self.parse_ws()
         c = self.peek()
-        if not c == ")":
-            raise Exception("Invalid SEXPR")
+        if c and (
+            c == "(" or self.is_DEQUOTE(c) or self.is_DIGIT(c) or self.is_ALPHA(c)
+        ):
+            exp = self.parse_exp()
+            ls.append(exp)
+            self.parse_ws()
+            while self.peek():
+                c = self.peek()
+                assert c is not None
+                if (
+                    c == "("
+                    or self.is_DEQUOTE(c)
+                    or self.is_DIGIT(c)
+                    or self.is_ALPHA(c)
+                ):
+                    exp = self.parse_exp()
+                    ls.append(exp)
+                    self.parse_ws()
+                else:
+                    break
+        c = self.peek()
+        if not c or c != ")":
+            raise Exception("Invalid List")
         self.consume()
-        return f"[{op}, {lf}, {rg}]"
+        return ls
 
     def parse_atom(self):
         c = self.peek()
-        if self.isDEQUOTE(c):
-            return self.parse_string()
-        if c == "-" or self.isDIGIT(c):
-            return self.parse_number()
-        peek4 = self.lookahead(4)
-        peek5 = self.lookahead(5)
-        peek6 = self.lookahead(6)
-        if (
-            peek4 == "true"
-            and (
-                not peek5
-                or self.isSP(peek5[-1])
-                or self.isHTAB(peek5[-1])
-                or self.isCR(peek5[-1])
-                or self.isLF(peek5[-1])
-                or peek5[-1] == ")"
-            )
-        ) or (
-            peek5 == "false"
-            and (
-                not peek6
-                or self.isSP(peek6[-1])
-                or self.isHTAB(peek6[-1])
-                or self.isCR(peek6[-1])
-                or self.isLF(peek6[-1])
-                or peek6[-1] == ")"
-
-            )
+        if not c or (
+            not self.is_DEQUOTE(c) and not self.is_DIGIT(c) and not self.is_ALPHA(c)
         ):
-            return self.parse_boolean()
-
-        if self.isALPHA(c):
-            return self.parse_symbol()
-
-        raise Exception("Invalid SEXPR")
+            raise Exception("Invalid ATOM")
+        if self.is_DEQUOTE(c):
+            return self.parse_string()
+        if self.is_DIGIT(c):
+            return self.parse_number()
+        return self.parse_symbol()
 
     def parse_symbol(self):
-        symbol: list[str] = ['"']
+        symbol: list[str] = []
         c = self.peek()
-        if not self.isALPHA(c):
+        if not c or not self.is_ALPHA(c):
             raise Exception("Invalid SEXPR")
         symbol.append(c)
         self.consume()
-        while not self.hasReachedEOF():
+        while self.peek():
             c = self.peek()
-            if self.isALPHA(c) or self.isDIGIT(c) or c == "-" or c == "_":
+            assert c is not None
+            if self.is_ALPHA(c) or self.is_DIGIT(c) or c == "-" or c == "_":
                 symbol.append(c)
                 self.consume()
             else:
-                symbol.append('"')
                 return "".join(symbol)
-        symbol.append('"')
         return "".join(symbol)
 
-    def parse_number(self):
-        number: list[str] = ['"']
+    def parse_number(self) -> list[str | int]:
         c = self.peek()
-        if c == "-":
-            number.append("-")
-            self.consume()
-            c = self.peek()
-
-        if not self.isDIGIT(c):
+        if not c or not self.is_DIGIT(c):
             raise Exception("Invalid SEXPR")
-        number.append(c)
+        number = int(c)
         self.consume()
-        while not self.hasReachedEOF():
+        while self.peek():
             c = self.peek()
-            if not self.isDIGIT(c):
-                number.append('"')
-                return "".join(number)
-            number.append(c)
+            assert c is not None
+            if not self.is_DIGIT(c):
+                return ["val", number]
+            number = (number * 10) + int(c)
             self.consume()
-        number.append('"')
-        return "".join(number)
+        return ["val", number]
 
     def parse_string(self):
         string: list[str] = []
         c = self.peek()
-        if not self.isDEQUOTE(c):
+        if not c or not self.is_DEQUOTE(c):
             raise Exception("Invalid SEXPR")
         string.append(c)
         self.consume()
-        while not self.hasReachedEOF():
+        while self.peek():
             c = self.peek()
+            assert c is not None
             if c != " " and c != "!" and (c < "#" or c > "~"):
                 break
             string.append(c)
             self.consume()
-        if self.hasReachedEOF():
-            raise Exception("Invalid SEXPR")
+
         c = self.peek()
-        if not self.isDEQUOTE(c):
+        if not c or not self.is_DEQUOTE(c):
             raise Exception("Invalid SEXPR")
         string.append(c)
         self.consume()
         return "".join(string)
 
-    def parse_boolean(self):
-        trie: trie_type = {
-            "t": {"r": {"u": {"e": True}}},
-            "f": {"a": {"l": {"s": {"e": False}}}},
-        }
-        while not self.hasReachedEOF():
-            if isinstance(trie, bool):
-                return "true" if trie else "false"
-            c = self.peek()
-            if not c in trie:
-                raise Exception("Invalid SEXPR")
-            self.consume()
-            trie = trie[c]
-        if not isinstance(trie, bool):
-            raise Exception("Invalid SEXPR")
-        return "true" if trie else "false"
-
     def parse_ws(self):
-        while not self.hasReachedEOF():
+        while self.peek():
             c = self.peek()
+            assert c is not None
             if (
-                not self.isSP(c)
-                and not self.isHTAB(c)
-                and not self.isCR(c)
-                and not self.isLF(c)
+                not self.is_SP(c)
+                and not self.is_HTAB(c)
+                and not self.is_CR(c)
+                and not self.is_LF(c)
             ):
                 return
             self.consume()
 
-    def parse_operator(self):
-        c = self.peek()
-        if c != "+" and c != "-" and c != "*" and c != "/":
-            raise Exception("Invalid SEXPR")
-        self.consume()
-        return f'"{c}"'
-
     @staticmethod
-    def isAtom(c: str):
+    def is_Atom(c: str):
         if (c < "0" or c > "9") and (c < "a" or c > "z"):
             return False
         return True
 
     @staticmethod
-    def isALPHA(c: str):
+    def is_ALPHA(c: str):
         return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
 
     @staticmethod
-    def isDIGIT(c: str):
+    def is_DIGIT(c: str):
         return c >= "0" and c <= "9"
 
     @staticmethod
-    def isSP(c: str):
+    def is_SP(c: str):
         return c == " "
 
     @staticmethod
-    def isHTAB(c: str):
+    def is_HTAB(c: str):
         return c == "\t"
 
     @staticmethod
-    def isCR(c: str):
+    def is_CR(c: str):
         return c == "\r"
 
     @staticmethod
-    def isLF(c: str):
+    def is_LF(c: str):
         return c == "\n"
 
     @staticmethod
-    def isDEQUOTE(c: str):
+    def is_DEQUOTE(c: str):
         return c == '"'
