@@ -180,3 +180,70 @@ class Parser:
     @staticmethod
     def is_DEQUOTE(c: str):
         return c == '"'
+
+
+def eval(exp: sexp_type):
+    """exp: a valid parsed expession"""
+    if isinstance(exp, str):
+        return exp
+    assert isinstance(exp, list)
+    if len(exp) == 2 and exp[0] == "val":
+        assert isinstance(exp[1], int)
+        val = exp[1]
+        return val
+    if len(exp) == 3 and exp[0] in [
+        "plus",
+        "minus",
+        "mult",
+        "div",
+        "lt",
+        "gt",
+        "eq",
+        "nq",
+        "and",
+        "or",
+    ]:
+        lf = eval(exp[1])
+        rg = eval(exp[2])
+        match exp[0]:
+            case "plus":
+                return lf + rg
+            case "minus":
+                return lf - rg
+            case "mult":
+                return lf * rg
+            case "div":
+                return lf / rg
+            case "lt":
+                return lf < rg
+            case "gt":
+                return lf > rg
+            case "eq":
+                return lf == rg
+            case "nq":
+                return lf != rg
+            case "and":
+                return lf and rg
+            case "or":
+                return lf or rg
+            case _:
+                pass
+
+    if len(exp) == 2 and exp[0] in ["minus", "neg"]:
+        lf = eval(exp[1])
+        match exp[0]:
+            case "minus":
+                return -lf
+            case "neg":
+                return not lf
+            case _:
+                pass
+    if len(exp) == 4 and exp[0] == "?" and isinstance(exp[1], list):
+        cond = eval(exp[1])
+        return eval(exp[2]) if cond else eval(exp[3])
+
+    if exp[0] == "print":
+        print(*(eval(expr) for expr in exp[1:]))
+        return
+
+    return [eval(expr) for expr in exp]
