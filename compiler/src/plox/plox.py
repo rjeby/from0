@@ -15,12 +15,9 @@ def run_prompt():
     reader = sys.stdin
     while (True):
         print("> ", end="", flush=True)
-        line = reader.readline()
-        if (line == ""):
+        data = reader.readline()
+        if (data == ""):
             print("")
-            break
-        data = line.strip()
-        if (data == "exit"):
             break
         run(data)
 
