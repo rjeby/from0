@@ -1,6 +1,8 @@
 import sys
 import locale
 
+def run(code: str):
+    return
 
 def run_script(path: str):
     system_encoding = locale.getpreferredencoding(False)
@@ -10,10 +12,17 @@ def run_script(path: str):
         
 def run_prompt():
     print('Welcome to Plox Interpreter (Type "exit" to exit):')
+    reader = sys.stdin
     while (True):
-        data = input("--> ")
+        print("> ", end="", flush=True)
+        line = reader.readline()
+        if (line == ""):
+            print("")
+            break
+        data = line.strip()
         if (data == "exit"):
             break
+        run(data)
 
 def main():
     try:
