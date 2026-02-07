@@ -1,5 +1,5 @@
 from src.plox.plox import Plox
-from src.plox.token import Literal
+from src.plox.token import LiteralValue
 from src.plox.token import Token
 from src.plox.token import TokenType
 
@@ -100,6 +100,8 @@ class Lexer:
             case _:
                 if self.is_digit(c):
                     self.scan_number()
+                elif self.is_alpha_numeric(c):
+                    self.scan_identifier()
                 else:
                     Plox.error(self.line, "Unexpected Character")
 
@@ -129,12 +131,12 @@ class Lexer:
         while not self.is_alpha_numeric(self.peek()):
             self.consume()
         text = self.source[self.start : self.current]
-        if (text in Lexer.keywords):
+        if text in Lexer.keywords:
             self.add_token(Lexer.keywords[text])
         else:
             self.add_token(TokenType.IDENTIFIER)
 
-    def add_token(self, type: TokenType, literal: Literal = None):
+    def add_token(self, type: TokenType, literal: LiteralValue = None):
         lexeme = self.source[self.start : self.current]
         self.tokens.append(Token(type, lexeme, literal, self.line))
 
