@@ -12,7 +12,7 @@ class Literal(Expression):
         self.literal = literal
 
     def __str__(self):
-        if not self.literal:
+        if self.literal == None:
             return "nil"
         return str(self.literal)
 

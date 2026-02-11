@@ -1,14 +1,21 @@
 import sys
 import locale
+from src.plox.lexer import Lexer
+from src.plox.parser import Parser
+from src.plox.error import PloxError
 
 
 class Plox:
 
-    hadError = False
-
     @staticmethod
     def run(code: str):
-        return
+        try:
+            tokens = Lexer(code).tokenize()
+            parser = Parser(tokens)
+            expression = parser.parse_expression()
+            print(expression)
+        except Exception as e:
+            print(e, file=sys.stderr)
 
     @staticmethod
     def run_script(path: str):
@@ -16,7 +23,7 @@ class Plox:
         with open(path, "rb", encoding=system_encoding) as f:
             data = f.read()
             Plox.run(data)
-        if Plox.hadError:
+        if PloxError.hadError:
             sys.exit(65)
 
     @staticmethod
@@ -30,15 +37,6 @@ class Plox:
                 print("")
                 break
             Plox.run(data)
-
-    @staticmethod
-    def report(line: int, message: str):
-        print(f"[Line {line}] Error : {message}")
-
-    @staticmethod
-    def error(line: int, message: str):
-        Plox.hadError = True
-        Plox.report(line, message)
 
     @staticmethod
     def main():

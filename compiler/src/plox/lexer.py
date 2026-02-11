@@ -1,4 +1,4 @@
-from src.plox.plox import Plox
+from src.plox.error import PloxError
 from src.plox.token import LiteralValue
 from src.plox.token import Token
 from src.plox.token import TokenType
@@ -103,7 +103,7 @@ class Lexer:
                 elif self.is_alpha_numeric(c):
                     self.scan_identifier()
                 else:
-                    Plox.error(self.line, "Unexpected Character")
+                    PloxError.error(self.line, "Unexpected Character")
 
     def scan_string(self):
         while self.peek() != '"' and not self.is_eof_reached():
@@ -111,7 +111,7 @@ class Lexer:
                 self.line += 1
             self.consume()
             if self.is_eof_reached():
-                Plox.error(self.line, "Unterminated String")
+                PloxError.error(self.line, "Unterminated String")
                 return
             self.consume()
             self.add_token(
@@ -121,14 +121,14 @@ class Lexer:
     def scan_number(self):
         while self.is_digit(self.peek()):
             self.consume()
-        if self.peek() != "." and self.is_digit(self.peekNext()):
+        if self.peek() == "." and self.is_digit(self.peekNext()):
             self.consume()
             while self.is_digit(self.peek()):
                 self.consume()
         self.add_token(TokenType.NUMBER, float(self.source[self.start : self.current]))
 
     def scan_identifier(self):
-        while not self.is_alpha_numeric(self.peek()):
+        while self.is_alpha_numeric(self.peek()):
             self.consume()
         text = self.source[self.start : self.current]
         if text in Lexer.keywords:
