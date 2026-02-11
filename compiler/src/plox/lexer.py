@@ -32,7 +32,7 @@ class Lexer:
         self.line = 1
 
     def tokenize(self):
-        while not self.is_eof_Reached():
+        while not self.is_eof_reached():
             # Set the start of the current token
             self.start = self.current
             self.scan_token()
@@ -83,7 +83,7 @@ class Lexer:
                 )
             case "/":
                 if self.match("/"):
-                    while self.peek() != "\n" and not self.is_eof_Reached():
+                    while self.peek() != "\n" and not self.is_eof_reached():
                         self.consume()
                 else:
                     self.add_token(TokenType.SLASH)
@@ -106,11 +106,11 @@ class Lexer:
                     Plox.error(self.line, "Unexpected Character")
 
     def scan_string(self):
-        while self.peek() != '"' and not self.is_eof_Reached():
+        while self.peek() != '"' and not self.is_eof_reached():
             if self.peek() == "\n":
                 self.line += 1
             self.consume()
-            if self.is_eof_Reached():
+            if self.is_eof_reached():
                 Plox.error(self.line, "Unterminated String")
                 return
             self.consume()
@@ -145,7 +145,7 @@ class Lexer:
         return self.source[self.current - 1]
 
     def peek(self):
-        if self.is_eof_Reached():
+        if self.is_eof_reached():
             return "\0"
         return self.source[self.current]
 
@@ -154,11 +154,11 @@ class Lexer:
             return "\0"
         return self.source[self.current + 1]
 
-    def is_eof_Reached(self):
+    def is_eof_reached(self):
         return self.current >= len(self.source)
 
     def match(self, expected: str):
-        if self.is_eof_Reached() or self.source[self.current] != expected:
+        if self.is_eof_reached() or self.source[self.current] != expected:
             return False
         self.current = self.current + 1
         return True
