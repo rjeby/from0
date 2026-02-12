@@ -113,10 +113,8 @@ class Lexer:
             if self.is_eof_reached():
                 PloxError.error(self.line, "Unterminated String")
                 return
-            self.consume()
-            self.add_token(
-                TokenType.STRING, self.source[self.start + 1 : self.current - 1]
-            )
+        self.consume()
+        self.add_token(TokenType.STRING, self.source[self.start + 1 : self.current - 1])
 
     def scan_number(self):
         while self.is_digit(self.peek()):

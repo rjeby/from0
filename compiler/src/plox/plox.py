@@ -13,7 +13,7 @@ class Plox:
             tokens = Lexer(code).tokenize()
             parser = Parser(tokens)
             expression = parser.parse_expression()
-            print(expression)
+            print(expression.evaluate())
         except Exception as e:
             print(e, file=sys.stderr)
 
