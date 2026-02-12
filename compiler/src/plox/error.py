@@ -1,5 +1,8 @@
+# TODO: Define RuntimeError / ParseError ...
+
 class PloxError:
     hadError = False
+    hadRuntimeError = False
 
     @staticmethod
     def report(line: int, message: str):

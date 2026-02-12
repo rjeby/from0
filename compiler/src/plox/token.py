@@ -1,6 +1,6 @@
 from enum import Enum, auto
 
-LiteralValue = str | int | bool | float | None
+LiteralValue = str | bool | float | None
 
 
 class TokenType(Enum):
@@ -58,7 +58,7 @@ class Token:
     def __init__(self, type: TokenType, lexeme: str, literal: LiteralValue, line: int):
         self.type = type
         self.lexeme = lexeme
-        self.literal = literal  
+        self.literal = literal
         self.line = line
 
     def __str__(self):

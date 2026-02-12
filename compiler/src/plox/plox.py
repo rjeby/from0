@@ -6,14 +6,14 @@ from src.plox.error import PloxError
 
 
 class Plox:
-
     @staticmethod
     def run(code: str):
         try:
             tokens = Lexer(code).tokenize()
             parser = Parser(tokens)
-            expression = parser.parse_expression()
-            print(expression.evaluate())
+            statements = parser.parse()
+            for statement in statements:
+                statement.execute()
         except Exception as e:
             print(e, file=sys.stderr)
 
@@ -25,6 +25,8 @@ class Plox:
             Plox.run(data)
         if PloxError.hadError:
             sys.exit(65)
+        if PloxError.hadRuntimeError:
+            sys.exit(70)
 
     @staticmethod
     def run_prompt():

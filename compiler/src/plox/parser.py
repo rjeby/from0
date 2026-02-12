@@ -1,3 +1,8 @@
+from src.plox.statement import Statement
+from src.plox.statement import ExpressionStatement
+from src.plox.statement import VarDeclarationStatement
+from src.plox.statement import PrintStatement
+from src.plox.expression import Variable
 from src.plox.expression import Literal
 from src.plox.expression import Expression
 from src.plox.expression import Binary
@@ -13,6 +18,63 @@ class Parser:
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
         self.current = 0
+
+    def parse(self):
+        statements: list[Statement] = []
+        while not self.is_eof_reached():
+            statement = self.parse_declaration()
+            statements.append(statement)
+
+        return statements
+
+    def parse_declaration(self) -> Statement:
+        token = self.peek()
+        if token.type == TokenType.VAR:
+            return self.parser_variable_declaration()
+
+        return self.parse_statement()
+
+    def parse_statement(self):
+        token = self.peek()
+        if token.type == TokenType.PRINT:
+            return self.parse_print_statement()
+        return self.parse_expression_statement()
+
+    def parser_variable_declaration(self):
+        self.consume()
+        token = self.peek()
+        if token.type != TokenType.IDENTIFIER:
+            PloxError.error(token.line, "Expected an identifier")
+            raise Exception("Expected a Semicolon")
+        identifier = self.consume()
+        expression = None
+        if self.peek().type == TokenType.EQUAL:
+            self.consume()
+            expression = self.parse_expression()
+        if token.type != TokenType.IDENTIFIER:
+            PloxError.error(token.line, "Expected a Semicolon")
+            raise Exception("Expected a Semicolon")
+        self.consume()
+        return VarDeclarationStatement(identifier, expression)
+
+    def parse_print_statement(self):
+        self.consume()
+        expression = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.SEMICOLON:
+            PloxError.error(token.line, "Expected a Semicolon")
+            raise Exception("Expected a Semicolon")
+        self.consume()
+        return PrintStatement(expression)
+
+    def parse_expression_statement(self):
+        expression = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.SEMICOLON:
+            PloxError.error(token.line, "Expected a Semicolon")
+            raise Exception("Expected a Semicolon")
+        self.consume()
+        return ExpressionStatement(expression)
 
     def parse_expression(self) -> Expression:
         return self.parse_equality()
@@ -81,6 +143,9 @@ class Parser:
             case TokenType.NUMBER | TokenType.STRING:
                 self.consume()
                 return Literal(token.literal)
+            case TokenType.IDENTIFIER:
+                self.consume()
+                return Variable(token)
             case TokenType.LEFT_PAREN:
                 self.consume()
                 expression = self.parse_expression()

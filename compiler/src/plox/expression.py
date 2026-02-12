@@ -1,13 +1,12 @@
+from src.plox.error import PloxError
 from src.plox.token import TokenType
 from src.plox.token import Token
 from src.plox.token import LiteralValue
 
-# TODO: Define RuntimeError / ParseError ...
-
 
 class Expression:
-    def __init__(self, x: int):
-        self.x = x
+    def __init__(self):
+        pass
 
     def evaluate(self) -> LiteralValue:
         pass
@@ -26,6 +25,18 @@ class Literal(Expression):
         return self.literal
 
 
+class Variable(Expression):
+    def __init__(self, name: Token):
+        self.name = name
+
+    def __str__(self):
+        return str(self.name.lexeme)
+
+    def evaluate(self) -> LiteralValue:
+        # TODO
+        pass
+
+
 class Binary(Expression):
     def __init__(self, left: Expression, operator: Token, right: Expression):
         self.left = left
@@ -42,42 +53,54 @@ class Binary(Expression):
             case TokenType.MINUS:
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) - float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
+                raise Exception("Operands must be Numbers")
             case TokenType.STAR:
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) * float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.SLASH:
                 # TODO: Check for zero division
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) / float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.PLUS:
                 if isinstance(left, str) and isinstance(right, str):
                     return left + right
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) + float(right)
+                PloxError.error(
+                    self.operator.line, "Operands must be Numbers or Strings"
+                )
                 raise Exception("Operands must be Numbers or Strings")
             case TokenType.GREATER:
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) > float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.GREATER_EQUAL:
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) >= float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.LESS:
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) < float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.LESS_EQUAL:
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) <= float(right)
+                PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.EQUAL_EQUAL:
                 return type(left) == type(right) and left == right
             case TokenType.BANG_EQUAL:
                 return type(left) != type(right) or left != right
             case _:
+                PloxError.error(self.operator.line, "Unexpected Operator")
                 raise Exception("Unexpected Operator")
 
 
@@ -95,12 +118,14 @@ class Unary(Expression):
             case TokenType.MINUS:
                 if isinstance(right, float):
                     return -float(right)
+                PloxError.error(self.operator.line, "Operand must be a Number")
                 raise Exception("Operand must be a Number")
             case TokenType.BANG:
                 if right == None or (isinstance(right, bool) and right == False):
                     return True
                 return False
             case _:
+                PloxError.error(self.operator.line, "Unexpected Operator")
                 raise Exception("Unexpected Operator")
 
 
