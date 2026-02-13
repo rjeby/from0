@@ -1,4 +1,5 @@
 from src.plox.statement import Statement
+from src.plox.statement import BlockStatement
 from src.plox.statement import ExpressionStatement
 from src.plox.statement import VarDeclarationStatement
 from src.plox.statement import PrintStatement
@@ -35,11 +36,26 @@ class Parser:
 
         return self.parse_statement()
 
-    def parse_statement(self):
+    def parse_statement(self) -> Statement:
         token = self.peek()
         if token.type == TokenType.PRINT:
             return self.parse_print_statement()
+        if token.type == TokenType.LEFT_BRACE:
+            return self.parse_block_statement()
         return self.parse_expression_statement()
+
+    def parse_block_statement(self):
+        statements: list[Statement] = []
+        self.consume()
+        while self.peek().type != TokenType.RIGHT_BRACE and not self.is_eof_reached():
+            declaration = self.parse_declaration()
+            statements.append(declaration)
+        token = self.peek()
+        if token.type != TokenType.RIGHT_BRACE:
+            PloxError.error(token.line, "Unterminated Block")
+            raise Exception("Unterminated Block")
+        self.consume()
+        return BlockStatement(statements)
 
     def parse_variable_declaration(self):
         self.consume()
@@ -80,7 +96,7 @@ class Parser:
     def parse_expression(self) -> Expression:
         return self.parse_assignment()
 
-    def parse_assignment(self):
+    def parse_assignment(self) -> Expression:
         expression = self.parse_equality()
         token = self.peek()
         if token.type == TokenType.EQUAL:

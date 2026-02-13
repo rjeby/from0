@@ -20,7 +20,7 @@ class Plox:
     @staticmethod
     def run_script(path: str):
         system_encoding = locale.getpreferredencoding(False)
-        with open(path, "rb", encoding=system_encoding) as f:
+        with open(path, "r", encoding=system_encoding) as f:
             data = f.read()
             Plox.run(data)
         if PloxError.hadError:

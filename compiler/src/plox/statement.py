@@ -1,7 +1,7 @@
 from src.plox.token import Token
 from src.plox.expression import Expression
 from src.plox.lexer import LiteralValue
-from src.plox.environment import environment
+import src.plox.environment as env
 
 
 class Statement:
@@ -18,6 +18,20 @@ class ExpressionStatement(Statement):
 
     def execute(self):
         self.expression.evaluate()
+
+
+class BlockStatement(Statement):
+    def __init__(self, statements: list[Statement]):
+        self.statements = statements
+
+    def execute(self):
+        try:
+            env.environment = env.Environment(env.environment)
+            for statement in self.statements:
+                statement.execute()
+        finally:
+            # Reset the environement even if an exception is thrown (REPL ...)
+            env.environment = env.environment.enclosing
 
 
 class PrintStatement(Statement):
@@ -49,4 +63,4 @@ class VarDeclarationStatement(Statement):
         value = None
         if self.initializer != None:
             value = self.initializer.evaluate()
-        environment.define(name, value)
+        env.environment.define(name, value)

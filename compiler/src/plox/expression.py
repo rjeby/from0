@@ -2,7 +2,7 @@ from src.plox.error import PloxError
 from src.plox.token import TokenType
 from src.plox.token import Token
 from src.plox.token import LiteralValue
-from src.plox.environment import environment
+import src.plox.environment as env
 
 
 class Expression:
@@ -34,7 +34,7 @@ class Variable(Expression):
         return str(self.name.lexeme)
 
     def evaluate(self) -> LiteralValue:
-        return environment.get(self.name)
+        return env.environment.get(self.name)
 
 
 class Assignment(Expression):
@@ -47,10 +47,9 @@ class Assignment(Expression):
         return f"({self.name.lexeme} = {str(self.value)})"
 
     def evaluate(self):
-        environment.get(self.name)
         value = self.value.evaluate()
-        environment.define(self.name.lexeme, value)
-        return value;
+        env.environment.assign(self.name, value)
+        return value
 
 
 class Binary(Expression):
