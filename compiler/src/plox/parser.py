@@ -3,6 +3,7 @@ from src.plox.statement import ExpressionStatement
 from src.plox.statement import VarDeclarationStatement
 from src.plox.statement import PrintStatement
 from src.plox.expression import Variable
+from src.plox.expression import Assignment
 from src.plox.expression import Literal
 from src.plox.expression import Expression
 from src.plox.expression import Binary
@@ -77,7 +78,21 @@ class Parser:
         return ExpressionStatement(expression)
 
     def parse_expression(self) -> Expression:
-        return self.parse_equality()
+        return self.parse_assignment()
+
+    def parse_assignment(self):
+        expression = self.parse_equality()
+        token = self.peek()
+        if token.type == TokenType.EQUAL:
+            if isinstance(expression, Variable):
+                self.consume()
+                name = expression.name
+                value = self.parse_assignment()
+                return Assignment(name, value)
+            PloxError.error(token.line, "Invalid Assignment Target")
+            # TODO: No need for synchronization
+            raise Exception("Invalid Assignment Target")
+        return expression
 
     def parse_equality(self):
         expression = self.parse_comparison()

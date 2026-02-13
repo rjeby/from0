@@ -37,6 +37,21 @@ class Variable(Expression):
         return environment.get(self.name)
 
 
+class Assignment(Expression):
+
+    def __init__(self, name: Token, value: Expression):
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        return f"({self.name.lexeme} = {str(self.value)})"
+
+    def evaluate(self):
+        environment.get(self.name)
+        value = self.value.evaluate()
+        environment.define(self.name.lexeme, value)
+        return value;
+
 
 class Binary(Expression):
     def __init__(self, left: Expression, operator: Token, right: Expression):
