@@ -1,6 +1,7 @@
 from src.plox.token import Token
 from src.plox.expression import Expression
 from src.plox.lexer import LiteralValue
+from src.plox.environment import environment
 
 
 class Statement:
@@ -44,5 +45,8 @@ class VarDeclarationStatement(Statement):
         self.initializer = initializer
 
     def execute(self):
-        # TODO
-        pass
+        name = self.token.lexeme
+        value = None
+        if self.initializer != None:
+            value = self.initializer.evaluate()
+        environment.define(name, value)

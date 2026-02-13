@@ -2,6 +2,7 @@ from src.plox.error import PloxError
 from src.plox.token import TokenType
 from src.plox.token import Token
 from src.plox.token import LiteralValue
+from src.plox.environment import environment
 
 
 class Expression:
@@ -33,8 +34,8 @@ class Variable(Expression):
         return str(self.name.lexeme)
 
     def evaluate(self) -> LiteralValue:
-        # TODO
-        pass
+        return environment.get(self.name)
+
 
 
 class Binary(Expression):
