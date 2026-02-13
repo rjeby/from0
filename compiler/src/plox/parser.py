@@ -30,7 +30,7 @@ class Parser:
     def parse_declaration(self) -> Statement:
         token = self.peek()
         if token.type == TokenType.VAR:
-            return self.parser_variable_declaration()
+            return self.parse_variable_declaration()
 
         return self.parse_statement()
 
@@ -40,22 +40,22 @@ class Parser:
             return self.parse_print_statement()
         return self.parse_expression_statement()
 
-    def parser_variable_declaration(self):
+    def parse_variable_declaration(self):
         self.consume()
         token = self.peek()
         if token.type != TokenType.IDENTIFIER:
-            PloxError.error(token.line, "Expected an identifier")
-            raise Exception("Expected a Semicolon")
+            PloxError.error(token.line, "Expected an Identifier")
+            raise Exception("Expected an Identifier")
         identifier = self.consume()
-        expression = None
+        initializer = None
         if self.peek().type == TokenType.EQUAL:
             self.consume()
-            expression = self.parse_expression()
+            initializer = self.parse_expression()
         if token.type != TokenType.IDENTIFIER:
             PloxError.error(token.line, "Expected a Semicolon")
             raise Exception("Expected a Semicolon")
         self.consume()
-        return VarDeclarationStatement(identifier, expression)
+        return VarDeclarationStatement(identifier, initializer)
 
     def parse_print_statement(self):
         self.consume()
