@@ -20,6 +20,22 @@ class ExpressionStatement(Statement):
         self.expression.evaluate()
 
 
+class WhileStatement(Statement):
+    def __init__(self, condition: Expression, body: Statement):
+        self.condition = condition
+        self.body = body
+
+    def execute(self):
+        while (self.is_truthy(self.condition.evaluate())):
+            self.body.execute()
+
+    @staticmethod
+    def is_truthy(value: LiteralValue):
+        if value == None or (isinstance(value, bool) and value == False):
+            return False
+        return True    
+
+
 class IfStatement(Statement):
     def __init__(
         self,

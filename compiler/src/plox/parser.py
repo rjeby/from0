@@ -1,4 +1,5 @@
 from src.plox.statement import Statement
+from src.plox.statement import WhileStatement
 from src.plox.statement import IfStatement
 from src.plox.statement import BlockStatement
 from src.plox.statement import ExpressionStatement
@@ -45,7 +46,70 @@ class Parser:
             return self.parse_block_statement()
         if token.type == TokenType.IF:
             return self.parse_if_statement()
+        if token.type == TokenType.WHILE:
+            return self.parse_while_statement()
+        if token.type == TokenType.FOR:
+            return self.parse_for_statement()
         return self.parse_expression_statement()
+
+    def parse_for_statement(self):
+        self.consume()
+        token = self.peek()
+        if token.type != TokenType.LEFT_PAREN:
+            PloxError.error(token.line, "Expected an Opening Parenthesis")
+            raise Exception("Expected an Opening Parenthesis")
+        self.consume()
+        initializer = None
+        token = self.peek()
+        if token.type == TokenType.SEMICOLON:
+            self.consume()
+        elif token.type == TokenType.VAR:
+            initializer = self.parse_variable_declaration()
+        else:
+            initializer = self.parse_expression_statement()
+        condition = None
+        token = self.peek()
+        if token.type != TokenType.SEMICOLON:
+            condition = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.SEMICOLON:
+            PloxError.error(token.line, "Expected a Semicolon")
+            raise Exception("Expected a Semicolon")
+        self.consume()
+        increment = None
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            increment = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            PloxError.error(token.line, "Expected a Closing Parenthesis")
+            raise Exception("Expected a closing Parenthesis")
+        self.consume()
+        body = self.parse_statement()
+        if increment != None:
+            body = BlockStatement([body, ExpressionStatement(increment)])
+        if condition == None:
+            condition = Literal(True)
+        body = WhileStatement(condition, body)
+        if initializer != None:
+            body = BlockStatement([initializer, body])
+        return body
+
+    def parse_while_statement(self):
+        self.consume()
+        token = self.peek()
+        if token.type != TokenType.LEFT_PAREN:
+            PloxError.error(token.line, "Expected an Opening Parenthesis")
+            raise Exception("Expected an Opening Parenthesis")
+        self.consume()
+        condition = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            PloxError.error(token.line, "Expected a Closing Parenthesis")
+            raise Exception("Expected a Closing Parenthesis")
+        self.consume()
+        body = self.parse_statement()
+        return WhileStatement(condition, body)
 
     def parse_if_statement(self):
         self.consume()
