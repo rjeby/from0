@@ -20,6 +20,30 @@ class ExpressionStatement(Statement):
         self.expression.evaluate()
 
 
+class IfStatement(Statement):
+    def __init__(
+        self,
+        condition: Expression,
+        then_branch: Statement,
+        else_branch: Statement | None = None,
+    ):
+        self.condition = condition
+        self.then_branch = then_branch
+        self.else_branch = else_branch
+
+    def execute(self):
+        if self.is_truthy(self.condition.evaluate()):
+            self.then_branch.execute()
+        elif self.else_branch != None:
+            self.else_branch.execute()
+
+    @staticmethod
+    def is_truthy(value: LiteralValue):
+        if value == None or (isinstance(value, bool) and value == False):
+            return False
+        return True
+
+
 class BlockStatement(Statement):
     def __init__(self, statements: list[Statement]):
         self.statements = statements

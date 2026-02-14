@@ -1,4 +1,5 @@
 from src.plox.statement import Statement
+from src.plox.statement import IfStatement
 from src.plox.statement import BlockStatement
 from src.plox.statement import ExpressionStatement
 from src.plox.statement import VarDeclarationStatement
@@ -42,7 +43,30 @@ class Parser:
             return self.parse_print_statement()
         if token.type == TokenType.LEFT_BRACE:
             return self.parse_block_statement()
+        if token.type == TokenType.IF:
+            return self.parse_if_statement()
         return self.parse_expression_statement()
+
+    def parse_if_statement(self):
+        self.consume()
+        token = self.peek()
+        if token.type != TokenType.LEFT_PAREN:
+            PloxError.error(token.line, "Expected an Opening Parenthesis")
+            raise Exception("Expected an Opening Parenthesis")
+        self.consume()
+        condition = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            PloxError.error(token.line, "Expected a Closing Parenthesis")
+            raise Exception("Expected a Closing Parenthesis")
+        self.consume()
+        then_branch = self.parse_statement()
+        else_branch = None
+        token = self.peek()
+        if token.type == TokenType.ELSE:
+            self.consume()
+            else_branch = self.parse_statement()
+        return IfStatement(condition, then_branch, else_branch)
 
     def parse_block_statement(self):
         statements: list[Statement] = []
