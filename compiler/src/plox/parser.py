@@ -121,7 +121,7 @@ class Parser:
         return self.parse_assignment()
 
     def parse_assignment(self) -> Expression:
-        expression = self.parse_equality()
+        expression = self.parse_logic_or()
         token = self.peek()
         if token.type == TokenType.EQUAL:
             if isinstance(expression, Variable):
@@ -132,6 +132,22 @@ class Parser:
             PloxError.error(token.line, "Invalid Assignment Target")
             # TODO: No need for synchronization
             raise Exception("Invalid Assignment Target")
+        return expression
+
+    def parse_logic_or(self):
+        expression = self.parse_logic_and()
+        while self.peek().type == TokenType.OR:
+            token = self.consume()
+            right = self.parse_logic_and()
+            expression = Binary(expression, token, right)
+        return expression
+
+    def parse_logic_and(self):
+        expression = self.parse_equality()
+        while self.peek().type == TokenType.AND:
+            token = self.consume()
+            right = self.parse_equality()
+            expression = Binary(expression, token, right)
         return expression
 
     def parse_equality(self):

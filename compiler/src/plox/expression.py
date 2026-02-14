@@ -62,26 +62,32 @@ class Binary(Expression):
         return f"({str(self.left)} {self.operator.lexeme} {str(self.right)})"
 
     def evaluate(self) -> LiteralValue:
-        left = self.left.evaluate()
-        right = self.right.evaluate()
         match self.operator.type:
             case TokenType.MINUS:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) - float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.STAR:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) * float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.SLASH:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 # TODO: Check for zero division
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) / float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.PLUS:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, str) and isinstance(right, str):
                     return left + right
                 if isinstance(left, float) and isinstance(right, float):
@@ -91,32 +97,60 @@ class Binary(Expression):
                 )
                 raise Exception("Operands must be Numbers or Strings")
             case TokenType.GREATER:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) > float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.GREATER_EQUAL:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) >= float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.LESS:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) < float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.LESS_EQUAL:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 if isinstance(left, float) and isinstance(right, float):
                     return float(left) <= float(right)
                 PloxError.error(self.operator.line, "Operands must be Numbers")
                 raise Exception("Operands must be Numbers")
             case TokenType.EQUAL_EQUAL:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 return type(left) == type(right) and left == right
             case TokenType.BANG_EQUAL:
+                left = self.left.evaluate()
+                right = self.right.evaluate()
                 return type(left) != type(right) or left != right
+            case TokenType.OR:
+                left = self.left.evaluate()
+                if (self.is_truthy(left)):
+                    return left
+                return self.right.evaluate()
+            case TokenType.AND:
+                left = self.left.evaluate()
+                if (not self.is_truthy(left)):
+                    return left
+                return self.right.evaluate()
             case _:
                 PloxError.error(self.operator.line, "Unexpected Operator")
                 raise Exception("Unexpected Operator")
+        
+    @staticmethod
+    def is_truthy(value: LiteralValue):
+        if value == None or (isinstance(value, bool) and value == False):
+            return False
+        return True
 
 
 class Unary(Expression):
