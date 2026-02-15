@@ -1,6 +1,11 @@
+from typing import TYPE_CHECKING
 from enum import Enum, auto
 
-LiteralValue = str | bool | float | None
+if TYPE_CHECKING:
+    from src.plox.callable import Callable
+
+type LiteralValue = "str | bool | float | None"
+type Value = "LiteralValue | Callable"
 
 
 class TokenType(Enum):

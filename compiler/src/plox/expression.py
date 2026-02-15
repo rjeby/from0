@@ -2,6 +2,8 @@ from src.plox.error import PloxError
 from src.plox.token import TokenType
 from src.plox.token import Token
 from src.plox.token import LiteralValue
+from src.plox.token import Value
+from src.plox.callable import Callable
 import src.plox.environment as env
 
 
@@ -9,8 +11,26 @@ class Expression:
     def __init__(self):
         pass
 
-    def evaluate(self) -> LiteralValue:
+    def evaluate(self) -> Value:
         pass
+
+
+class CallExpression(Expression):
+    def __init__(self, callee: Expression, paren: Token, arguments: list[Expression]):
+        self.callee = callee
+        self.paren = paren
+        self.arguments = arguments
+
+    def evaluate(self):
+        function = self.callee.evaluate()
+        if not isinstance(function, Callable):
+            PloxError.error(self.paren.line, "Callee must be a Callable")
+            raise Exception("Callee must be a Callable")
+        if function.arity() != len(self.arguments):
+            PloxError.error(self.paren.line, "Invalid Argument Count")
+            raise Exception("Invalid Argument Count")
+        arguments = [arg.evaluate() for arg in self.arguments]
+        return function.call(arguments)
 
 
 class Literal(Expression):
@@ -33,7 +53,7 @@ class Variable(Expression):
     def __str__(self):
         return str(self.name.lexeme)
 
-    def evaluate(self) -> LiteralValue:
+    def evaluate(self) -> Value:
         return env.environment.get(self.name)
 
 
@@ -61,7 +81,7 @@ class Binary(Expression):
     def __str__(self):
         return f"({str(self.left)} {self.operator.lexeme} {str(self.right)})"
 
-    def evaluate(self) -> LiteralValue:
+    def evaluate(self) -> Value:
         match self.operator.type:
             case TokenType.MINUS:
                 left = self.left.evaluate()
@@ -134,20 +154,20 @@ class Binary(Expression):
                 return type(left) != type(right) or left != right
             case TokenType.OR:
                 left = self.left.evaluate()
-                if (self.is_truthy(left)):
+                if self.is_truthy(left):
                     return left
                 return self.right.evaluate()
             case TokenType.AND:
                 left = self.left.evaluate()
-                if (not self.is_truthy(left)):
+                if not self.is_truthy(left):
                     return left
                 return self.right.evaluate()
             case _:
                 PloxError.error(self.operator.line, "Unexpected Operator")
                 raise Exception("Unexpected Operator")
-        
+
     @staticmethod
-    def is_truthy(value: LiteralValue):
+    def is_truthy(value: Value):
         if value == None or (isinstance(value, bool) and value == False):
             return False
         return True
@@ -161,7 +181,7 @@ class Unary(Expression):
     def __str__(self):
         return f"({self.operator.lexeme} {str(self.right)})"
 
-    def evaluate(self) -> LiteralValue:
+    def evaluate(self) -> Value:
         right = self.right.evaluate()
         match self.operator.type:
             case TokenType.MINUS:
@@ -185,5 +205,5 @@ class Grouping(Expression):
     def __str__(self):
         return f"(group {str(self.expression)})"
 
-    def evaluate(self) -> LiteralValue:
+    def evaluate(self) -> Value:
         return self.expression.evaluate()

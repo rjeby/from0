@@ -4,6 +4,8 @@ from src.plox.token import Token
 from src.plox.token import TokenType
 
 
+
+
 class Lexer:
     keywords = {
         "and": TokenType.AND,

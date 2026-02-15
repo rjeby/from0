@@ -1,17 +1,18 @@
 from src.plox.error import PloxError
-from src.plox.lexer import LiteralValue
+from src.plox.token import Value
 from src.plox.token import Token
+from src.plox.callable import Clock
 
 
 class Environment:
     def __init__(self, enclosing: "Environment | None" = None):
         self.enclosing = enclosing
-        self.values: dict[str, LiteralValue] = {}
+        self.values: dict[str, Value] = {}
 
-    def define(self, name: str, value: LiteralValue):
+    def define(self, name: str, value: Value):
         self.values[name] = value
 
-    def get(self, token: Token) -> LiteralValue:
+    def get(self, token: Token) -> Value:
         name = token.lexeme
         if name in self.values:
             return self.values[name]
@@ -20,7 +21,7 @@ class Environment:
         PloxError.error(token.line, "Undefined Variable")
         raise Exception("Undefined Variable")
 
-    def assign(self, name: Token, value: LiteralValue):
+    def assign(self, name: Token, value: Value):
         if name.lexeme in self.values:
             self.values[name.lexeme] = value
             return
@@ -32,3 +33,5 @@ class Environment:
 
 
 environment = Environment()
+# Define clock native function in the global environment
+environment.define("clock", Clock())

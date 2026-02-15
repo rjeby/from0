@@ -1,6 +1,7 @@
 from src.plox.token import Token
 from src.plox.expression import Expression
-from src.plox.lexer import LiteralValue
+from src.plox.token import Value
+from src.plox.function import Function
 import src.plox.environment as env
 
 
@@ -26,14 +27,14 @@ class WhileStatement(Statement):
         self.body = body
 
     def execute(self):
-        while (self.is_truthy(self.condition.evaluate())):
+        while self.is_truthy(self.condition.evaluate()):
             self.body.execute()
 
     @staticmethod
-    def is_truthy(value: LiteralValue):
+    def is_truthy(value: Value):
         if value == None or (isinstance(value, bool) and value == False):
             return False
-        return True    
+        return True
 
 
 class IfStatement(Statement):
@@ -54,7 +55,7 @@ class IfStatement(Statement):
             self.else_branch.execute()
 
     @staticmethod
-    def is_truthy(value: LiteralValue):
+    def is_truthy(value: Value):
         if value == None or (isinstance(value, bool) and value == False):
             return False
         return True
@@ -74,6 +75,17 @@ class BlockStatement(Statement):
             env.environment = env.environment.enclosing
 
 
+class FuncDeclarationStatement(Statement):
+    def __init__(self, name: Token, params: list[Token], body: BlockStatement):
+        self.name = name
+        self.params = params
+        self.body = body
+
+    def execute(self):
+        callable = Function(self)
+        env.environment.define(self.name.lexeme, callable)
+
+
 class PrintStatement(Statement):
     def __init__(self, expression: Expression):
         self.expression = expression
@@ -82,7 +94,7 @@ class PrintStatement(Statement):
         print(self.stringify(self.expression.evaluate()))
 
     @staticmethod
-    def stringify(literal: LiteralValue):
+    def stringify(literal: Value):
         if literal == None:
             return "nil"
         if isinstance(literal, bool):

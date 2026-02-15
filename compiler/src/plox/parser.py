@@ -1,10 +1,12 @@
 from src.plox.statement import Statement
+from src.plox.statement import FuncDeclarationStatement
 from src.plox.statement import WhileStatement
 from src.plox.statement import IfStatement
 from src.plox.statement import BlockStatement
 from src.plox.statement import ExpressionStatement
 from src.plox.statement import VarDeclarationStatement
 from src.plox.statement import PrintStatement
+from src.plox.expression import CallExpression
 from src.plox.expression import Variable
 from src.plox.expression import Assignment
 from src.plox.expression import Literal
@@ -33,10 +35,62 @@ class Parser:
 
     def parse_declaration(self) -> Statement:
         token = self.peek()
+        if token.type == TokenType.FUN:
+            return self.parse_function()
         if token.type == TokenType.VAR:
             return self.parse_variable_declaration()
 
         return self.parse_statement()
+
+    def parse_function(self):
+        token = self.peek()
+        if token.type != TokenType.IDENTIFIER:
+            PloxError.error(token.line, "Expected an Identifier")
+            raise Exception("Expected an Identifier")
+        name = self.consume()
+        token = self.peek()
+        if token.type != TokenType.LEFT_PAREN:
+            PloxError.error(token.line, "Expected an Opening Parenthesis")
+            raise Exception("Expected an Opening Parenthesis")
+        self.consume()
+        params = self.parse_parameters()
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            PloxError.error(token.line, "Expected an Closing Parenthesis")
+            raise Exception("Expected an Closing Parenthesis")
+        body = self.parse_block_statement()
+        return FuncDeclarationStatement(name, params, body)
+
+    def parse_parameters(self):
+        params: list[Token] = []
+        token = self.peek()
+        if token.type == TokenType.RIGHT_PAREN:
+            self.consume()
+            return params
+        self.consume()
+        token = self.peek()
+        if token.type != TokenType.IDENTIFIER:
+            PloxError.error(token.line, "Expected an Identifier")
+            raise Exception("Expected an Identifier")
+        params.append(token)
+        while self.peek().type == TokenType.COMMA:
+            self.consume()
+            token = self.peek()
+            if token.type != TokenType.IDENTIFIER:
+                PloxError.error(token.line, "Expected an Identifier")
+                raise Exception("Expected an Identifier")
+            self.consume()
+            params.append(token)
+            if len(params) >= 255:
+                PloxError.error(token.line, "Max Paramaters Count Exceeded")
+                raise Exception("Max Parameters Count Exceeded")
+
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            PloxError.error(token.line, "Expected a Closing Parenthesis")
+            raise Exception("Expected a Closing Parenthesis")
+        self.consume()
+        return params
 
     def parse_statement(self) -> Statement:
         token = self.peek()
@@ -261,7 +315,41 @@ class Parser:
             token = self.consume()
             expression = self.parse_unary()
             return Unary(token, expression)
-        return self.parse_primary()
+        return self.parse_call()
+
+    def parse_call(self):
+        expression = self.parse_primary()
+        token = self.peek()
+
+        while self.peek().type == TokenType.LEFT_PAREN:
+            token = self.consume()
+            arguments = self.parse_arguments()
+            expression = CallExpression(expression, token, arguments)
+        return expression
+
+    def parse_arguments(self):
+        arguments: list[Expression] = []
+        token = self.peek()
+        if token.type == TokenType.RIGHT_PAREN:
+            self.consume()
+            return arguments
+        self.consume()
+        expression = self.parse_expression()
+        arguments.append(expression)
+        while self.peek().type == TokenType.COMMA:
+            self.consume()
+            expression = self.parse_expression()
+            arguments.append(expression)
+            if len(arguments) >= 255:
+                PloxError.error(token.line, "Max Arguments Count Exceeded")
+                raise Exception("Max Arguments Count Exceeded")
+
+        token = self.peek()
+        if token.type != TokenType.RIGHT_PAREN:
+            PloxError.error(token.line, "Expected a Closing Parenthesis")
+            raise Exception("Expected a Closing Parenthesis")
+        self.consume()
+        return arguments
 
     def parse_primary(self):
         token = self.peek()
