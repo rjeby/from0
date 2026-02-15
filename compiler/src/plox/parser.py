@@ -43,6 +43,7 @@ class Parser:
         return self.parse_statement()
 
     def parse_function(self):
+        self.consume()
         token = self.peek()
         if token.type != TokenType.IDENTIFIER:
             PloxError.error(token.line, "Expected an Identifier")
@@ -52,26 +53,20 @@ class Parser:
         if token.type != TokenType.LEFT_PAREN:
             PloxError.error(token.line, "Expected an Opening Parenthesis")
             raise Exception("Expected an Opening Parenthesis")
-        self.consume()
         params = self.parse_parameters()
-        token = self.peek()
-        if token.type != TokenType.RIGHT_PAREN:
-            PloxError.error(token.line, "Expected an Closing Parenthesis")
-            raise Exception("Expected an Closing Parenthesis")
         body = self.parse_block_statement()
         return FuncDeclarationStatement(name, params, body)
 
     def parse_parameters(self):
+        self.consume()
         params: list[Token] = []
         token = self.peek()
         if token.type == TokenType.RIGHT_PAREN:
-            self.consume()
             return params
-        self.consume()
-        token = self.peek()
         if token.type != TokenType.IDENTIFIER:
             PloxError.error(token.line, "Expected an Identifier")
             raise Exception("Expected an Identifier")
+        self.consume()
         params.append(token)
         while self.peek().type == TokenType.COMMA:
             self.consume()
@@ -82,9 +77,8 @@ class Parser:
             self.consume()
             params.append(token)
             if len(params) >= 255:
-                PloxError.error(token.line, "Max Paramaters Count Exceeded")
+                PloxError.error(token.line, "Max Parameters Count Exceeded")
                 raise Exception("Max Parameters Count Exceeded")
-
         token = self.peek()
         if token.type != TokenType.RIGHT_PAREN:
             PloxError.error(token.line, "Expected a Closing Parenthesis")
@@ -320,20 +314,18 @@ class Parser:
     def parse_call(self):
         expression = self.parse_primary()
         token = self.peek()
-
         while self.peek().type == TokenType.LEFT_PAREN:
-            token = self.consume()
             arguments = self.parse_arguments()
             expression = CallExpression(expression, token, arguments)
         return expression
 
     def parse_arguments(self):
+        self.consume()
         arguments: list[Expression] = []
         token = self.peek()
         if token.type == TokenType.RIGHT_PAREN:
             self.consume()
             return arguments
-        self.consume()
         expression = self.parse_expression()
         arguments.append(expression)
         while self.peek().type == TokenType.COMMA:

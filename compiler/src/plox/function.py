@@ -21,7 +21,7 @@ class Function(Callable):
             env.environment.define(
                 self.declaration.params[index].lexeme, arguments[index]
             )
-        self.declaration.execute()
+        self.declaration.body.execute()
         env.environment = env.environment.enclosing
 
         return None
