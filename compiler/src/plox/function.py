@@ -1,4 +1,5 @@
 from src.plox.callable import Callable
+from src.plox.ret import Return
 from typing import TYPE_CHECKING
 from src.plox.token import Value
 import src.plox.environment as env
@@ -9,20 +10,28 @@ if TYPE_CHECKING:
 
 
 class Function(Callable):
-    def __init__(self, declaration: "FuncDeclarationStatement"):
+    def __init__(self, closure: env.Environment, declaration: "FuncDeclarationStatement"):
+        self.closure = closure
         self.declaration = declaration
 
     def arity(self) -> int:
         return len(self.declaration.params)
 
     def call(self, arguments: list[Value]):
-        env.environment = env.Environment(env.environment)
-        for index in range(len(arguments)):
-            env.environment.define(
-                self.declaration.params[index].lexeme, arguments[index]
-            )
-        self.declaration.body.execute()
-        env.environment = env.environment.enclosing
+        previous = env.environment
+        try:
+            env.environment = env.Environment(self.closure)
+            for index in range(len(arguments)):
+                env.environment.define(
+                    self.declaration.params[index].lexeme, arguments[index]
+                )
+
+            self.declaration.body.execute()
+        except Return as ret:
+            return ret.value
+
+        finally:
+            env.environment = previous
 
         return None
 

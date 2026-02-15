@@ -1,4 +1,5 @@
 from src.plox.statement import Statement
+from src.plox.statement import ReturnStatement
 from src.plox.statement import FuncDeclarationStatement
 from src.plox.statement import WhileStatement
 from src.plox.statement import IfStatement
@@ -54,6 +55,10 @@ class Parser:
             PloxError.error(token.line, "Expected an Opening Parenthesis")
             raise Exception("Expected an Opening Parenthesis")
         params = self.parse_parameters()
+        token = self.peek()
+        if token.type != TokenType.LEFT_BRACE:
+            PloxError.error(token.line, "Expected an Opening Brace")
+            raise Exception("Expected an Opening Brace")
         body = self.parse_block_statement()
         return FuncDeclarationStatement(name, params, body)
 
@@ -62,6 +67,7 @@ class Parser:
         params: list[Token] = []
         token = self.peek()
         if token.type == TokenType.RIGHT_PAREN:
+            self.consume()
             return params
         if token.type != TokenType.IDENTIFIER:
             PloxError.error(token.line, "Expected an Identifier")
@@ -94,11 +100,26 @@ class Parser:
             return self.parse_block_statement()
         if token.type == TokenType.IF:
             return self.parse_if_statement()
+        if token.type == TokenType.RETURN:
+            return self.parse_return_statement()
         if token.type == TokenType.WHILE:
             return self.parse_while_statement()
         if token.type == TokenType.FOR:
             return self.parse_for_statement()
         return self.parse_expression_statement()
+
+    def parse_return_statement(self):
+        keyword = self.consume()
+        value = None
+        token = self.peek()
+        if token.type != TokenType.SEMICOLON:
+            value = self.parse_expression()
+        token = self.peek()
+        if token.type != TokenType.SEMICOLON:
+            PloxError.error(token.line, "Expected a Semicolon")
+            raise Exception("Expected a Semicolon")
+        self.consume()
+        return ReturnStatement(keyword, value)
 
     def parse_for_statement(self):
         self.consume()

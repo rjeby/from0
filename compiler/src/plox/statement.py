@@ -2,6 +2,7 @@ from src.plox.token import Token
 from src.plox.expression import Expression
 from src.plox.token import Value
 from src.plox.function import Function
+from src.plox.ret import Return
 import src.plox.environment as env
 
 
@@ -11,6 +12,18 @@ class Statement:
 
     def execute(self):
         pass
+
+
+class ReturnStatement(Statement):
+    def __init__(self, keyword: Token, value: Expression | None):
+        self.keyword = keyword
+        self.value = value
+
+    def execute(self):
+        value = None
+        if self.value != None:
+            value = self.value.evaluate()
+        raise Return(value)
 
 
 class ExpressionStatement(Statement):
@@ -82,7 +95,7 @@ class FuncDeclarationStatement(Statement):
         self.body = body
 
     def execute(self):
-        callable = Function(self)
+        callable = Function(env.environment, self)
         env.environment.define(self.name.lexeme, callable)
 
 
