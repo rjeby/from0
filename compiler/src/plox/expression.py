@@ -4,7 +4,7 @@ from src.plox.token import Token
 from src.plox.token import LiteralValue
 from src.plox.token import Value
 from src.plox.callable import Callable
-import src.plox.environment as env
+from src.plox.resolver import Resolver
 
 
 class Expression:
@@ -12,6 +12,9 @@ class Expression:
         pass
 
     def evaluate(self) -> Value:
+        pass
+
+    def resolve(self):
         pass
 
 
@@ -32,6 +35,11 @@ class CallExpression(Expression):
         arguments = [arg.evaluate() for arg in self.arguments]
         return function.call(arguments)
 
+    def resolve(self):
+        self.callee.resolve()
+        for argument in self.arguments:
+            argument.resolve()
+
 
 class Literal(Expression):
     def __init__(self, literal: LiteralValue):
@@ -45,6 +53,9 @@ class Literal(Expression):
     def evaluate(self) -> LiteralValue:
         return self.literal
 
+    def resolve(self):
+        return
+
 
 class Variable(Expression):
     def __init__(self, name: Token):
@@ -54,7 +65,13 @@ class Variable(Expression):
         return str(self.name.lexeme)
 
     def evaluate(self) -> Value:
-        return env.environment.get(self.name)
+        return Resolver.look_up_variable(self.name, self)
+
+    def resolve(self):
+        if Resolver.has_declaration_on_top(self.name):
+            PloxError.error(self.name.line, "Can't Read Local Variable in Initializer")
+            raise Exception("Can't Read Local Variable in Initializer")
+        Resolver.resolve_local(self, self.name)
 
 
 class Assignment(Expression):
@@ -68,8 +85,12 @@ class Assignment(Expression):
 
     def evaluate(self):
         value = self.value.evaluate()
-        env.environment.assign(self.name, value)
+        Resolver.assign_to_variable(self.name, self, value)
         return value
+
+    def resolve(self):
+        self.value.resolve()
+        Resolver.resolve_local(self, self.name)
 
 
 class Binary(Expression):
@@ -166,6 +187,10 @@ class Binary(Expression):
                 PloxError.error(self.operator.line, "Unexpected Operator")
                 raise Exception("Unexpected Operator")
 
+    def resolve(self):
+        self.left.resolve()
+        self.right.resolve()
+
     @staticmethod
     def is_truthy(value: Value):
         if value == None or (isinstance(value, bool) and value == False):
@@ -197,6 +222,9 @@ class Unary(Expression):
                 PloxError.error(self.operator.line, "Unexpected Operator")
                 raise Exception("Unexpected Operator")
 
+    def resolve(self):
+        self.right.resolve()
+
 
 class Grouping(Expression):
     def __init__(self, expression: Expression):
@@ -207,3 +235,6 @@ class Grouping(Expression):
 
     def evaluate(self) -> Value:
         return self.expression.evaluate()
+
+    def resolve(self):
+        self.expression.resolve()

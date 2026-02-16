@@ -3,6 +3,7 @@ from src.plox.expression import Expression
 from src.plox.token import Value
 from src.plox.function import Function
 from src.plox.ret import Return
+from src.plox.resolver import Resolver
 import src.plox.environment as env
 
 
@@ -11,6 +12,9 @@ class Statement:
         pass
 
     def execute(self):
+        pass
+
+    def resolve(self):
         pass
 
 
@@ -24,6 +28,10 @@ class ReturnStatement(Statement):
         if self.value != None:
             value = self.value.evaluate()
         raise Return(value)
+    
+    def resolve(self):
+        if (self.value):
+            self.value.resolve()
 
 
 class ExpressionStatement(Statement):
@@ -32,6 +40,9 @@ class ExpressionStatement(Statement):
 
     def execute(self):
         self.expression.evaluate()
+
+    def resolve(self):
+        self.expression.resolve()
 
 
 class WhileStatement(Statement):
@@ -42,6 +53,10 @@ class WhileStatement(Statement):
     def execute(self):
         while self.is_truthy(self.condition.evaluate()):
             self.body.execute()
+
+    def resolve(self):
+        self.condition.resolve()
+        self.body.resolve()
 
     @staticmethod
     def is_truthy(value: Value):
@@ -67,6 +82,12 @@ class IfStatement(Statement):
         elif self.else_branch != None:
             self.else_branch.execute()
 
+    def resolve(self):
+        self.condition.resolve()
+        self.then_branch.resolve()
+        if self.else_branch:
+            self.else_branch.resolve()
+
     @staticmethod
     def is_truthy(value: Value):
         if value == None or (isinstance(value, bool) and value == False):
@@ -87,6 +108,12 @@ class BlockStatement(Statement):
             # Reset the environement even if an exception is thrown (REPL ...)
             env.environment = env.environment.enclosing
 
+    def resolve(self):
+        Resolver.begin_scope()
+        for statement in self.statements:
+            statement.resolve()
+        Resolver.end_scope()
+
 
 class FuncDeclarationStatement(Statement):
     def __init__(self, name: Token, params: list[Token], body: BlockStatement):
@@ -98,6 +125,16 @@ class FuncDeclarationStatement(Statement):
         callable = Function(env.environment, self)
         env.environment.define(self.name.lexeme, callable)
 
+    def resolve(self):
+        Resolver.declare(self.name)
+        Resolver.define(self.name)
+        Resolver.begin_scope()
+        for param in self.params:
+            Resolver.declare(param)
+            Resolver.define(param)
+        self.body.resolve()
+        Resolver.end_scope()
+
 
 class PrintStatement(Statement):
     def __init__(self, expression: Expression):
@@ -105,6 +142,9 @@ class PrintStatement(Statement):
 
     def execute(self):
         print(self.stringify(self.expression.evaluate()))
+
+    def resolve(self):
+        self.expression.resolve()
 
     @staticmethod
     def stringify(literal: Value):
@@ -129,3 +169,9 @@ class VarDeclarationStatement(Statement):
         if self.initializer != None:
             value = self.initializer.evaluate()
         env.environment.define(name, value)
+
+    def resolve(self):
+        Resolver.declare(self.token)
+        if self.initializer:
+            self.initializer.resolve()
+        Resolver.define(self.token)

@@ -13,6 +13,8 @@ class Plox:
             parser = Parser(tokens)
             statements = parser.parse()
             for statement in statements:
+                statement.resolve()
+            for statement in statements:
                 statement.execute()
         except Exception as e:
             print(e, file=sys.stderr)

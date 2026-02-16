@@ -1,3 +1,4 @@
+
 from src.plox.error import PloxError
 from src.plox.token import Value
 from src.plox.token import Token
@@ -32,6 +33,7 @@ class Environment:
         raise Exception("Undefined Variable")
 
 
-environment = Environment()
+globals = Environment()
+environment = globals
 # Define clock native function in the global environment
 environment.define("clock", Clock())
