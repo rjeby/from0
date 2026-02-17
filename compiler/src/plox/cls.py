@@ -12,9 +12,15 @@ class Class(Callable):
 
     def call(self, arguments: list[Value]) -> Value:
         instance = Instance(self)
+        initializer = self.methods.get("init", None)
+        if initializer:
+            initializer.bind(instance).call(arguments)
         return instance
 
     def arity(self):
+        initializer = self.methods.get("init", None)
+        if initializer:
+            return initializer.arity()
         return 0
 
     def __str__(self):

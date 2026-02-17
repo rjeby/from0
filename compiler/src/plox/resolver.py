@@ -15,6 +15,7 @@ class FunctionType(Enum):
     NONE = auto()
     FUNCTION = auto()
     METHOD = auto()
+    INITIALIZER = auto()
 
 class ClassType(Enum):
     NONE = auto()

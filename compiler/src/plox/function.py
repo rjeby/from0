@@ -12,21 +12,26 @@ if TYPE_CHECKING:
 
 class Function(Callable):
     def __init__(
-        self, closure: env.Environment, declaration: "FuncDeclarationStatement"
+        self,
+        closure: env.Environment,
+        declaration: "FuncDeclarationStatement",
+        is_initializer: bool = False,
     ):
+        self.is_initializer = is_initializer
         self.closure = closure
         self.declaration = declaration
 
     def bind(self, instance: "Instance"):
         environment = env.Environment(self.closure)
         environment.define("this", instance)
-        return Function(environment, self.declaration)
+        return Function(environment, self.declaration, self.is_initializer)
 
     def arity(self) -> int:
         return len(self.declaration.params)
 
     def call(self, arguments: list[Value]):
         previous = env.environment
+        return_value = None
         try:
             env.environment = env.Environment(self.closure)
             for index in range(len(arguments)):
@@ -36,12 +41,13 @@ class Function(Callable):
 
             self.declaration.body.execute()
         except Return as ret:
-            return ret.value
+            return_value = ret.value
 
         finally:
             env.environment = previous
-
-        return None
+        if self.is_initializer:
+            return_value = self.closure.values["this"]
+        return return_value
 
     def __str__(self) -> str:
         return f"<fn :: {self.declaration.name.lexeme}>"

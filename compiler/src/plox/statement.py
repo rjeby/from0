@@ -75,7 +75,10 @@ class ClassDeclarationStatement(Statement):
         env.environment.define(self.name.lexeme, None)
         methods: dict[str, Function] = {}
         for method in self.methods:
-            methods[method.name.lexeme] = Function(env.environment, method)
+            is_initializer = True if method.name.lexeme == "init" else False
+            methods[method.name.lexeme] = Function(
+                env.environment, method, is_initializer
+            )
         cls = Class(self.name.lexeme, methods)
         env.environment.assign(self.name, cls)
 
@@ -87,7 +90,11 @@ class ClassDeclarationStatement(Statement):
         Resolver.scopes[-1]["this"] = True
         for method in self.methods:
             enclosing_function = Resolver.current_function
-            Resolver.current_function = FunctionType.METHOD
+            Resolver.current_function = (
+                FunctionType.INITIALIZER
+                if method.name.lexeme == "init"
+                else FunctionType.METHOD
+            )
             Resolver.declare(method.name)
             Resolver.define(method.name)
             Resolver.begin_scope()
@@ -114,7 +121,9 @@ class ReturnStatement(Statement):
         raise Return(value)
 
     def resolve(self):
-        if Resolver.current_function == FunctionType.NONE:
+        if Resolver.current_function == FunctionType.NONE or (
+            self.value and Resolver.current_function == FunctionType.INITIALIZER
+        ):
             PloxError.error(self.keyword.line, "Invalid Return Statement")
             raise Exception("Invalid Return Statement")
 
