@@ -11,15 +11,18 @@ if TYPE_CHECKING:
 
 locals: dict["Expression", int] = {}
 
+
 class FunctionType(Enum):
     NONE = auto()
     FUNCTION = auto()
     METHOD = auto()
     INITIALIZER = auto()
 
+
 class ClassType(Enum):
     NONE = auto()
     CLASS = auto()
+    SUBCLASS = auto()
 
 
 class Resolver:
@@ -79,6 +82,22 @@ class Resolver:
             return target.get(name)
         else:
             return env.globals.get(name)
+
+    @staticmethod
+    def look_up_super(expr: "Expression") -> list[Value]:
+        distance = locals.get(expr, None)
+        assert distance != None
+        target = env.environment
+        for _ in range(distance - 1):
+            assert target != None
+            target = target.enclosing
+        assert target != None
+        this = target.values["this"]
+        assert this != None
+        target = target.enclosing
+        assert target != None
+        super = target.values["super"]
+        return [this, super]
 
     @staticmethod
     def assign_to_variable(name: Token, expr: "Expression", value: Value):

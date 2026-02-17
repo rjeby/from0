@@ -14,6 +14,7 @@ from src.plox.expression import CallExpression
 from src.plox.expression import Variable
 from src.plox.expression import Assignment
 from src.plox.expression import Literal
+from src.plox.expression import Super
 from src.plox.expression import This
 from src.plox.expression import Expression
 from src.plox.expression import Binary
@@ -56,6 +57,16 @@ class Parser:
             PloxError.error(token.line, "Expected an Identifier")
             raise Exception("Expected an Identifier")
         name = self.consume()
+        superclass = None
+        token = self.peek()
+        if (token.type == TokenType.LESS):
+            self.consume()
+            token = self.peek()
+            if token.type != TokenType.IDENTIFIER:
+                PloxError.error(token.line, "Expected an Identifier")
+                raise Exception("Expected an Identifier")
+            identifier = self.consume()
+            superclass = Variable(identifier)
         token = self.peek()
         if token.type != TokenType.LEFT_BRACE:
             PloxError.error(token.line, "Expected a Left Brace")
@@ -70,7 +81,7 @@ class Parser:
             PloxError.error(token.line, "Expected a Right Brace")
             raise Exception("Expected a Right Brace")
         self.consume()
-        return ClassDeclarationStatement(name, methods)
+        return ClassDeclarationStatement(name, superclass, methods)
 
     def parse_method(self):
         token = self.peek()
@@ -452,6 +463,19 @@ class Parser:
             case TokenType.IDENTIFIER:
                 self.consume()
                 return Variable(token)
+            case TokenType.SUPER:
+                keyword = self.consume()
+                token = self.peek()
+                if token.type != TokenType.DOT:
+                    PloxError.error(token.line, "Expected a Dot")
+                    raise Exception("Expected a Dot")
+                self.consume()
+                token = self.peek()
+                if token.type != TokenType.IDENTIFIER:
+                    PloxError.error(token.line, "Expected an Identifier")
+                    raise Exception("Expected an Identifier")
+                method = self.consume()
+                return Super(keyword, method)
             case TokenType.LEFT_PAREN:
                 self.consume()
                 expression = self.parse_expression()

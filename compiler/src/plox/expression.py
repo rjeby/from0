@@ -5,8 +5,10 @@ from src.plox.token import LiteralValue
 from src.plox.token import Value
 from src.plox.callable import Callable
 from src.plox.resolver import Resolver
-from src.plox.resolver import  ClassType
+from src.plox.resolver import ClassType
+from src.plox.cls import Class
 from src.plox.cls import Instance
+
 
 
 class Expression:
@@ -95,6 +97,28 @@ class Literal(Expression):
         return
 
 
+class Super(Expression):
+    def __init__(self, keyword: Token, method: Token):
+        self.keyword = keyword
+        self.method = method
+
+    def evaluate(self):
+        this, superclass = Resolver.look_up_super(self)
+        assert isinstance(superclass, Class)
+        assert isinstance(this, Instance)
+        method = superclass.find_method(self.method)
+        if not method:
+            PloxError.error(self.method.line, "Undefined Method")
+            raise Exception("Undefined Method")
+        return method.bind(this)
+
+    def resolve(self):
+        if Resolver.current_class != ClassType.SUBCLASS:
+            PloxError.error(self.keyword.line, "Super can only be used in Subclass")
+            raise Exception("Super can only be used in Subclass")
+        Resolver.resolve_local(self, self.keyword)
+
+
 class This(Expression):
     def __init__(self, keyword: Token):
         self.keyword = keyword
@@ -103,7 +127,7 @@ class This(Expression):
         return Resolver.look_up_variable(self.keyword, self)
 
     def resolve(self):
-        if Resolver.current_class != ClassType.CLASS:
+        if Resolver.current_class != ClassType.CLASS and Resolver.current_class != ClassType.SUBCLASS:
             PloxError.error(self.keyword.line, "This cannot be used outside a Class")
             raise Exception("This cannot be used outside a Class")
 

@@ -18,6 +18,7 @@ class Plox:
                 statement.execute()
         except Exception as e:
             print(e, file=sys.stderr)
+            
 
     @staticmethod
     def run_script(path: str):

@@ -1,5 +1,6 @@
 from src.plox.token import Token
 from src.plox.expression import Expression
+from src.plox.expression import Variable
 from src.plox.token import Value
 from src.plox.function import Function
 from src.plox.ret import Return
@@ -67,25 +68,49 @@ class FuncDeclarationStatement(Statement):
 
 
 class ClassDeclarationStatement(Statement):
-    def __init__(self, name: Token, methods: list[FuncDeclarationStatement]):
+    def __init__(
+        self,
+        name: Token,
+        superclass: Variable | None,
+        methods: list[FuncDeclarationStatement],
+    ):
         self.name = name
+        self.superclass = superclass
         self.methods = methods
 
     def execute(self):
+        superclass = None
+        if self.superclass:
+            superclass = self.superclass.evaluate()
+            if not isinstance(superclass, Class):
+                PloxError.error(self.superclass.name.line, "Superclass must be a Class")
+                raise Exception("Superclass must be a Class")
         env.environment.define(self.name.lexeme, None)
+        closure = env.environment
+        if self.superclass:
+            closure = env.Environment(closure)
+            closure.define("super", superclass)
         methods: dict[str, Function] = {}
         for method in self.methods:
             is_initializer = True if method.name.lexeme == "init" else False
-            methods[method.name.lexeme] = Function(
-                env.environment, method, is_initializer
-            )
-        cls = Class(self.name.lexeme, methods)
+            methods[method.name.lexeme] = Function(closure, method, is_initializer)
+        cls = Class(self.name.lexeme, methods, superclass)
         env.environment.assign(self.name, cls)
 
     def resolve(self):
         enclosing_class = Resolver.current_class
-        Resolver.current_class = ClassType.CLASS
+        Resolver.current_class =  ClassType.CLASS if not self.superclass else ClassType.SUBCLASS
         Resolver.declare(self.name)
+        if self.superclass and self.superclass.name.lexeme == self.name.lexeme:
+            PloxError.error(
+                self.superclass.name.line, "A Class can't Inherit From Itself"
+            )
+            raise Exception("A Class can't Inherit From Itself")
+        if self.superclass:
+            self.superclass.resolve()
+            Resolver.begin_scope()
+            Resolver.scopes[-1]["super"] = True
+
         Resolver.begin_scope()
         Resolver.scopes[-1]["this"] = True
         for method in self.methods:
@@ -106,6 +131,8 @@ class ClassDeclarationStatement(Statement):
             Resolver.current_function = enclosing_function
         Resolver.end_scope()
         Resolver.define(self.name)
+        if self.superclass:
+            Resolver.end_scope()
         Resolver.current_class = enclosing_class
 
 
