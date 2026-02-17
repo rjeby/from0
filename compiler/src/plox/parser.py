@@ -8,6 +8,8 @@ from src.plox.statement import BlockStatement
 from src.plox.statement import ExpressionStatement
 from src.plox.statement import VarDeclarationStatement
 from src.plox.statement import PrintStatement
+from src.plox.expression import SetExpression
+from src.plox.expression import GetExpression
 from src.plox.expression import CallExpression
 from src.plox.expression import Variable
 from src.plox.expression import Assignment
@@ -306,6 +308,12 @@ class Parser:
                 name = expression.name
                 value = self.parse_assignment()
                 return Assignment(name, value)
+            elif isinstance(expression, GetExpression):
+                self.consume()
+                object = expression.object
+                name = expression.name
+                value = self.parse_assignment()
+                return SetExpression(object, name, value)
             PloxError.error(token.line, "Invalid Assignment Target")
             # TODO: No need for synchronization
             raise Exception("Invalid Assignment Target")
@@ -379,9 +387,22 @@ class Parser:
     def parse_call(self):
         expression = self.parse_primary()
         token = self.peek()
-        while self.peek().type == TokenType.LEFT_PAREN:
-            arguments = self.parse_arguments()
-            expression = CallExpression(expression, token, arguments)
+        while (
+            self.peek().type == TokenType.LEFT_PAREN
+            or self.peek().type == TokenType.DOT
+        ):
+            if token.type == TokenType.LEFT_PAREN:
+                arguments = self.parse_arguments()
+                expression = CallExpression(expression, token, arguments)
+            else:
+                self.consume()
+                token = self.peek()
+                if token.type != TokenType.IDENTIFIER:
+                    PloxError.error(token.line, "Expected an Indentifier")
+                    raise Exception("Expected an Indentifier")
+                name = self.consume()
+                expression = GetExpression(expression, name)
+
         return expression
 
     def parse_arguments(self):

@@ -5,6 +5,7 @@ from src.plox.token import LiteralValue
 from src.plox.token import Value
 from src.plox.callable import Callable
 from src.plox.resolver import Resolver
+from src.plox.cls import Instance
 
 
 class Expression:
@@ -16,6 +17,42 @@ class Expression:
 
     def resolve(self):
         pass
+
+
+class SetExpression(Expression):
+    def __init__(self, object: Expression, name: Token, value: Expression):
+        self.object = object
+        self.name = name
+        self.value = value
+
+    def evaluate(self) -> Value:
+        object = self.object.evaluate()
+        if not isinstance(object, Instance):
+            PloxError.error(self.name.line, "Only Instances Have Fields")
+            raise Exception("Only Instances Have Fields")
+        value = self.value.evaluate()
+        object.set(self.name, value)
+        return value
+
+    def resolve(self):
+        self.object.resolve()
+        self.value.resolve()
+
+
+class GetExpression(Expression):
+    def __init__(self, object: Expression, name: Token):
+        self.object = object
+        self.name = name
+
+    def evaluate(self) -> Value:
+        object = self.object.evaluate()
+        if not isinstance(object, Instance):
+            PloxError.error(self.name.line, "Only Instances Have Properties")
+            raise Exception("Only Instances Have Properties")
+        return object.get(self.name)
+
+    def resolve(self):
+        self.object.resolve()
 
 
 class CallExpression(Expression):
