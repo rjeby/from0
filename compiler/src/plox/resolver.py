@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 from src.plox.token import Token
 from src.plox.token import Value
+from src.plox.error import PloxError
+from enum import Enum, auto
 import src.plox.environment as env
 
 if TYPE_CHECKING:
@@ -9,9 +11,14 @@ if TYPE_CHECKING:
 
 locals: dict["Expression", int] = {}
 
+class FunctionType(Enum):
+    NONE = auto()
+    FUNCTION = auto()
+
 
 class Resolver:
     scopes: list[dict[str, bool]] = []
+    current_function = FunctionType.NONE
 
     @staticmethod
     def resolve_local(exp: "Expression", name: Token):
@@ -41,6 +48,9 @@ class Resolver:
         if not len(Resolver.scopes):
             return None
         top = Resolver.scopes[-1]
+        if name.lexeme in top:
+            PloxError.error(name.line, "Variable Already Declared in this Scope")
+            raise Exception("Variable Already Declared in this Scope")
         top[name.lexeme] = False
 
     @staticmethod

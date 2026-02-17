@@ -3,7 +3,10 @@ from src.plox.expression import Expression
 from src.plox.token import Value
 from src.plox.function import Function
 from src.plox.ret import Return
+from src.plox.resolver import FunctionType
 from src.plox.resolver import Resolver
+from src.plox.error import PloxError
+from src.plox.cls import Class
 import src.plox.environment as env
 
 
@@ -18,6 +21,21 @@ class Statement:
         pass
 
 
+class ClassDeclarationStatement(Statement):
+    def __init__(self, name: Token, methods: list[Statement]):
+        self.name = name
+        self.methods = methods
+
+    def execute(self):
+        env.environment.define(self.name.lexeme, None)
+        cls = Class(self.name.lexeme)
+        env.environment.assign(self.name, cls)
+
+    def resolve(self):
+        Resolver.declare(self.name)
+        Resolver.define(self.name)
+
+
 class ReturnStatement(Statement):
     def __init__(self, keyword: Token, value: Expression | None):
         self.keyword = keyword
@@ -28,9 +46,13 @@ class ReturnStatement(Statement):
         if self.value != None:
             value = self.value.evaluate()
         raise Return(value)
-    
+
     def resolve(self):
-        if (self.value):
+        if Resolver.current_function == FunctionType.NONE:
+            PloxError.error(self.keyword.line, "Invalid Return Statement")
+            raise Exception("Invalid Return Statement")
+
+        if self.value:
             self.value.resolve()
 
 
@@ -126,6 +148,8 @@ class FuncDeclarationStatement(Statement):
         env.environment.define(self.name.lexeme, callable)
 
     def resolve(self):
+        enclosing = Resolver.current_function
+        Resolver.current_function = FunctionType.FUNCTION
         Resolver.declare(self.name)
         Resolver.define(self.name)
         Resolver.begin_scope()
@@ -134,6 +158,7 @@ class FuncDeclarationStatement(Statement):
             Resolver.define(param)
         self.body.resolve()
         Resolver.end_scope()
+        Resolver.current_function = enclosing
 
 
 class PrintStatement(Statement):

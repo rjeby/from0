@@ -3,9 +3,10 @@ from enum import Enum, auto
 
 if TYPE_CHECKING:
     from src.plox.callable import Callable
+    from src.plox.cls import Class
 
 type LiteralValue = "str | bool | float | None"
-type Value = "LiteralValue | Callable"
+type Value = "LiteralValue | Callable | Class"
 
 
 class TokenType(Enum):

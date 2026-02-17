@@ -1,4 +1,5 @@
 from src.plox.statement import Statement
+from src.plox.statement import ClassDeclarationStatement
 from src.plox.statement import ReturnStatement
 from src.plox.statement import FuncDeclarationStatement
 from src.plox.statement import WhileStatement
@@ -36,12 +37,55 @@ class Parser:
 
     def parse_declaration(self) -> Statement:
         token = self.peek()
+        if token.type == TokenType.CLASS:
+            return self.parse_class()
         if token.type == TokenType.FUN:
             return self.parse_function()
         if token.type == TokenType.VAR:
             return self.parse_variable_declaration()
 
         return self.parse_statement()
+
+    def parse_class(self):
+        self.consume()
+        token = self.peek()
+        if token.type != TokenType.IDENTIFIER:
+            PloxError.error(token.line, "Expected an Identifier")
+            raise Exception("Expected an Identifier")
+        name = self.consume()
+        token = self.peek()
+        if token.type != TokenType.LEFT_BRACE:
+            PloxError.error(token.line, "Expected a Left Brace")
+            raise Exception("Expected a Left Brace")
+        self.consume()
+        methods: list[Statement] = []
+        while self.peek().type != TokenType.RIGHT_BRACE and not self.is_eof_reached():
+            method = self.parse_method()
+            methods.append(method)
+        token = self.peek()
+        if token.type != TokenType.RIGHT_BRACE:
+            PloxError.error(token.line, "Expected a Right Brace")
+            raise Exception("Expected a Right Brace")
+        self.consume()
+        return ClassDeclarationStatement(name, methods)
+
+    def parse_method(self):
+        token = self.peek()
+        if token.type != TokenType.IDENTIFIER:
+            PloxError.error(token.line, "Expected an Identifier")
+            raise Exception("Expected an Identifier")
+        name = self.consume()
+        token = self.peek()
+        if token.type != TokenType.LEFT_PAREN:
+            PloxError.error(token.line, "Expected an Opening Parenthesis")
+            raise Exception("Expected an Opening Parenthesis")
+        params = self.parse_parameters()
+        token = self.peek()
+        if token.type != TokenType.LEFT_BRACE:
+            PloxError.error(token.line, "Expected an Opening Brace")
+            raise Exception("Expected an Opening Brace")
+        body = self.parse_block_statement()
+        return FuncDeclarationStatement(name, params, body)
 
     def parse_function(self):
         self.consume()
