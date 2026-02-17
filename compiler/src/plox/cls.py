@@ -30,7 +30,8 @@ class Instance:
         if name.lexeme in self.fields:
             return self.fields[name.lexeme]
         if name.lexeme in self.cls.methods:
-            return self.cls.methods[name.lexeme]
+            method = self.cls.methods[name.lexeme]
+            return method.bind(self)
         PloxError.error(name.line, "Undefined Property")
         raise Exception("Undefined Property")
 

@@ -7,12 +7,20 @@ import src.plox.environment as env
 
 if TYPE_CHECKING:
     from src.plox.statement import FuncDeclarationStatement
+    from src.plox.cls import Instance
 
 
 class Function(Callable):
-    def __init__(self, closure: env.Environment, declaration: "FuncDeclarationStatement"):
+    def __init__(
+        self, closure: env.Environment, declaration: "FuncDeclarationStatement"
+    ):
         self.closure = closure
         self.declaration = declaration
+
+    def bind(self, instance: "Instance"):
+        environment = env.Environment(self.closure)
+        environment.define("this", instance)
+        return Function(environment, self.declaration)
 
     def arity(self) -> int:
         return len(self.declaration.params)

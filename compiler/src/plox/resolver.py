@@ -16,10 +16,15 @@ class FunctionType(Enum):
     FUNCTION = auto()
     METHOD = auto()
 
+class ClassType(Enum):
+    NONE = auto()
+    CLASS = auto()
+
 
 class Resolver:
     scopes: list[dict[str, bool]] = []
     current_function = FunctionType.NONE
+    current_class = ClassType.NONE
 
     @staticmethod
     def resolve_local(exp: "Expression", name: Token):

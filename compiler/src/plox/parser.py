@@ -14,6 +14,7 @@ from src.plox.expression import CallExpression
 from src.plox.expression import Variable
 from src.plox.expression import Assignment
 from src.plox.expression import Literal
+from src.plox.expression import This
 from src.plox.expression import Expression
 from src.plox.expression import Binary
 from src.plox.expression import Unary
@@ -445,6 +446,9 @@ class Parser:
             case TokenType.NUMBER | TokenType.STRING:
                 self.consume()
                 return Literal(token.literal)
+            case TokenType.THIS:
+                self.consume()
+                return This(token)
             case TokenType.IDENTIFIER:
                 self.consume()
                 return Variable(token)

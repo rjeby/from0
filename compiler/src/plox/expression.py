@@ -5,6 +5,7 @@ from src.plox.token import LiteralValue
 from src.plox.token import Value
 from src.plox.callable import Callable
 from src.plox.resolver import Resolver
+from src.plox.resolver import  ClassType
 from src.plox.cls import Instance
 
 
@@ -92,6 +93,21 @@ class Literal(Expression):
 
     def resolve(self):
         return
+
+
+class This(Expression):
+    def __init__(self, keyword: Token):
+        self.keyword = keyword
+
+    def evaluate(self):
+        return Resolver.look_up_variable(self.keyword, self)
+
+    def resolve(self):
+        if Resolver.current_class != ClassType.CLASS:
+            PloxError.error(self.keyword.line, "This cannot be used outside a Class")
+            raise Exception("This cannot be used outside a Class")
+
+        Resolver.resolve_local(self, self.keyword)
 
 
 class Variable(Expression):

@@ -3,6 +3,7 @@ from src.plox.expression import Expression
 from src.plox.token import Value
 from src.plox.function import Function
 from src.plox.ret import Return
+from src.plox.resolver import ClassType
 from src.plox.resolver import FunctionType
 from src.plox.resolver import Resolver
 from src.plox.error import PloxError
@@ -72,16 +73,20 @@ class ClassDeclarationStatement(Statement):
 
     def execute(self):
         env.environment.define(self.name.lexeme, None)
-        methods : dict[str, Function] = {}
+        methods: dict[str, Function] = {}
         for method in self.methods:
             methods[method.name.lexeme] = Function(env.environment, method)
         cls = Class(self.name.lexeme, methods)
         env.environment.assign(self.name, cls)
 
     def resolve(self):
+        enclosing_class = Resolver.current_class
+        Resolver.current_class = ClassType.CLASS
         Resolver.declare(self.name)
+        Resolver.begin_scope()
+        Resolver.scopes[-1]["this"] = True
         for method in self.methods:
-            enclosing = Resolver.current_function
+            enclosing_function = Resolver.current_function
             Resolver.current_function = FunctionType.METHOD
             Resolver.declare(method.name)
             Resolver.define(method.name)
@@ -91,8 +96,10 @@ class ClassDeclarationStatement(Statement):
                 Resolver.define(param)
             method.body.resolve()
             Resolver.end_scope()
-            Resolver.current_function = enclosing
+            Resolver.current_function = enclosing_function
+        Resolver.end_scope()
         Resolver.define(self.name)
+        Resolver.current_class = enclosing_class
 
 
 class ReturnStatement(Statement):
