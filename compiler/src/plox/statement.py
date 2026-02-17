@@ -21,18 +21,77 @@ class Statement:
         pass
 
 
+class BlockStatement(Statement):
+    def __init__(self, statements: list[Statement]):
+        self.statements = statements
+
+    def execute(self):
+        try:
+            env.environment = env.Environment(env.environment)
+            for statement in self.statements:
+                statement.execute()
+        finally:
+            # Reset the environement even if an exception is thrown (REPL ...)
+            env.environment = env.environment.enclosing
+
+    def resolve(self):
+        Resolver.begin_scope()
+        for statement in self.statements:
+            statement.resolve()
+        Resolver.end_scope()
+
+
+class FuncDeclarationStatement(Statement):
+    def __init__(self, name: Token, params: list[Token], body: BlockStatement):
+        self.name = name
+        self.params = params
+        self.body = body
+
+    def execute(self):
+        callable = Function(env.environment, self)
+        env.environment.define(self.name.lexeme, callable)
+
+    def resolve(self):
+        enclosing = Resolver.current_function
+        Resolver.current_function = FunctionType.FUNCTION
+        Resolver.declare(self.name)
+        Resolver.define(self.name)
+        Resolver.begin_scope()
+        for param in self.params:
+            Resolver.declare(param)
+            Resolver.define(param)
+        self.body.resolve()
+        Resolver.end_scope()
+        Resolver.current_function = enclosing
+
+
 class ClassDeclarationStatement(Statement):
-    def __init__(self, name: Token, methods: list[Statement]):
+    def __init__(self, name: Token, methods: list[FuncDeclarationStatement]):
         self.name = name
         self.methods = methods
 
     def execute(self):
         env.environment.define(self.name.lexeme, None)
-        cls = Class(self.name.lexeme)
+        methods : dict[str, Function] = {}
+        for method in self.methods:
+            methods[method.name.lexeme] = Function(env.environment, method)
+        cls = Class(self.name.lexeme, methods)
         env.environment.assign(self.name, cls)
 
     def resolve(self):
         Resolver.declare(self.name)
+        for method in self.methods:
+            enclosing = Resolver.current_function
+            Resolver.current_function = FunctionType.METHOD
+            Resolver.declare(method.name)
+            Resolver.define(method.name)
+            Resolver.begin_scope()
+            for param in method.params:
+                Resolver.declare(param)
+                Resolver.define(param)
+            method.body.resolve()
+            Resolver.end_scope()
+            Resolver.current_function = enclosing
         Resolver.define(self.name)
 
 
@@ -115,50 +174,6 @@ class IfStatement(Statement):
         if value == None or (isinstance(value, bool) and value == False):
             return False
         return True
-
-
-class BlockStatement(Statement):
-    def __init__(self, statements: list[Statement]):
-        self.statements = statements
-
-    def execute(self):
-        try:
-            env.environment = env.Environment(env.environment)
-            for statement in self.statements:
-                statement.execute()
-        finally:
-            # Reset the environement even if an exception is thrown (REPL ...)
-            env.environment = env.environment.enclosing
-
-    def resolve(self):
-        Resolver.begin_scope()
-        for statement in self.statements:
-            statement.resolve()
-        Resolver.end_scope()
-
-
-class FuncDeclarationStatement(Statement):
-    def __init__(self, name: Token, params: list[Token], body: BlockStatement):
-        self.name = name
-        self.params = params
-        self.body = body
-
-    def execute(self):
-        callable = Function(env.environment, self)
-        env.environment.define(self.name.lexeme, callable)
-
-    def resolve(self):
-        enclosing = Resolver.current_function
-        Resolver.current_function = FunctionType.FUNCTION
-        Resolver.declare(self.name)
-        Resolver.define(self.name)
-        Resolver.begin_scope()
-        for param in self.params:
-            Resolver.declare(param)
-            Resolver.define(param)
-        self.body.resolve()
-        Resolver.end_scope()
-        Resolver.current_function = enclosing
 
 
 class PrintStatement(Statement):

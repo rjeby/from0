@@ -60,7 +60,7 @@ class Parser:
             PloxError.error(token.line, "Expected a Left Brace")
             raise Exception("Expected a Left Brace")
         self.consume()
-        methods: list[Statement] = []
+        methods: list[FuncDeclarationStatement] = []
         while self.peek().type != TokenType.RIGHT_BRACE and not self.is_eof_reached():
             method = self.parse_method()
             methods.append(method)
@@ -391,6 +391,7 @@ class Parser:
             self.peek().type == TokenType.LEFT_PAREN
             or self.peek().type == TokenType.DOT
         ):
+            token = self.peek()
             if token.type == TokenType.LEFT_PAREN:
                 arguments = self.parse_arguments()
                 expression = CallExpression(expression, token, arguments)
