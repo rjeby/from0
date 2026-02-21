@@ -1,3 +1,0 @@
-# Compiler (In Progress)
-
-A **simple compiler** written in **Python** ...
